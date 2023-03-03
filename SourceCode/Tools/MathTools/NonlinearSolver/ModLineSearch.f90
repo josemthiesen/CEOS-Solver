@@ -217,7 +217,7 @@ module ModLineSearch
            
             !---------------------------------------------------------------------------------------------------------------
             ! Line-search / Bonet and Wood's Text Book  (2008)            
-            R_scalar_0 = - dot_product(DX, R)
+            R_scalar_0 = dot_product(DX, R)
                 
             eta = 1.0
             eta_old = eta
