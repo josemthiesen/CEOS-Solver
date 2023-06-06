@@ -50,7 +50,7 @@ module ModAnalysis
     
     !Multiscale Models
     type ClassMultiscaleModels
-        integer  :: Taylor=1 , Linear=2 , Periodic=3, Minimal=4, MinimalLinearD1 = 5, MinimalLinearD3 = 6, LinearMinimalP = 7
+        integer  :: Taylor=1 , Linear=2 , Periodic=3, Minimal=4, MinimalLinearD1 = 5, MinimalLinearD3 = 6, LinearMinimalP = 7, SecondOrderMinimal = 8
     end type
     type (ClassMultiscaleModels), parameter :: MultiscaleModels = ClassMultiscaleModels()
     
@@ -128,6 +128,10 @@ module ModAnalysis
     real(8) , target , dimension( 3 , MaxElementNumberDOF)                      :: Hfpg_Memory
     real(8) , target , dimension( 3 , MaxElementNumberDOF)                      :: Hfe_Memory
     real(8) , target , dimension( MaxElementNumberDOF)                          :: Nfe_Memory
+    real(8) , target , dimension( 8 , MaxElementNumberDOF)                      :: transHYJS_Memory
+    real(8) , target , dimension( 8 , MaxElementNumberDOF)                      :: transHYJS_e_Memory
+    real(8) , target , dimension( 9 , MaxElementNumberDOF)                      :: HYJS_e_Memory
+
     
     
     real(8) , target , dimension( MaxElementNumberDOF , MaxElementNumberDOF)    :: KeF_Memory       ! Memory for Ke Fluid
@@ -174,8 +178,10 @@ module ModAnalysis
     !$OMP THREADPRIVATE(Nfpg_Memory) 
     !$OMP THREADPRIVATE(Hfpg_Memory) 
     !$OMP THREADPRIVATE(Hfe_Memory)
+    !$OMP THREADPRIVATE(transHYJS_Memory)
+    !$OMP THREADPRIVATE(transHYJS_e_Memory)
+    !$OMP THREADPRIVATE(HYJS_e_Memory)
     !$OMP THREADPRIVATE(Nfe_Memory)
-    
     !$OMP THREADPRIVATE(KeF_Memory)
     !$OMP THREADPRIVATE(Nf_Memory)
     !$OMP THREADPRIVATE(N_Memory)
@@ -224,6 +230,9 @@ module ModAnalysis
         
         ! Referential volume
         real(8) :: TotalVolX = 0
+        
+        ! Moment of Volume J
+        real(8), dimension(3,3) :: Volume_Moment_J
         
         ! Multiscale Minimal Model Parameter
         real(8) :: MultiscaleEpsilonParameter      

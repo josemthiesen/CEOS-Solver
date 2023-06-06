@@ -112,6 +112,7 @@
 		<File RelativePath="..\..\SourceCode\FEM\Modules\ModFEMSystemOfEquationsFluid.f90"/>
 		<File RelativePath="..\..\SourceCode\FEM\Modules\ModFEMSystemOfEquationsFluidLinearMinimalP.f90"/>
 		<File RelativePath="..\..\SourceCode\FEM\Modules\ModFEMSystemOfEquationsFluidMinimal.f90"/>
+		<File RelativePath="..\..\SourceCode\FEM\Modules\ModFEMSystemOfEquationsFluidSecOrdMinimal.f90"/>
 		<File RelativePath="..\..\SourceCode\FEM\Modules\ModFEMSystemOfEquationsMonolithicBiphasic.f90"/>
 		<File RelativePath="..\..\SourceCode\FEM\Modules\ModFEMSystemOfEquationsSolid.f90"/>
 		<File RelativePath="..\..\SourceCode\FEM\Modules\ModFEMSystemOfEquationsSolidMinimal.f90"/>
@@ -142,6 +143,7 @@
 		<Filter Name="MathTools">
 		<Filter Name="LinearSolver">
 		<File RelativePath="..\..\SourceCode\Tools\MathTools\LinearSolver\ModFullLinearSolver.f90"/>
+		<File RelativePath=".\ModGMRES.f90"/>
 		<File RelativePath="..\..\SourceCode\Tools\MathTools\LinearSolver\ModLinearSolver.f90"/>
 		<File RelativePath="..\..\SourceCode\Tools\MathTools\LinearSolver\ModLinearSolverLibrary.f90"/>
 		<File RelativePath="..\..\SourceCode\Tools\MathTools\LinearSolver\ModPardisoSolver.f90"/></Filter>

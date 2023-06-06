@@ -32,7 +32,7 @@ module ModProbe
         integer  :: Displacements=1 , Temperature=2, CauchyStress=3, LogarithmicStrain=4, &
                     DeformationGradient=5 , FirstPiolaStress=6, UserDefined=7, Pressure = 8, &
                     SpatialRelativeVelocity=9, ReferentialRelativeVelocity=10, Total_Volume = 11, GradientPressure = 12, BiphasicTotalCauchyStress = 13, &
-                    MacroscopicJacobian = 14,MacroscopicJacobianRate = 15, JdivV = 16
+                    MacroscopicJacobian = 14,MacroscopicJacobianRate = 15, JdivV = 16, SecondGradientPressure=17
     end type
     type (ClassVariableNames), parameter :: VariableNames = ClassVariableNames()
 
@@ -174,6 +174,8 @@ module ModProbe
                 enu = VariableNames%Pressure
             ELSEIF ( Comp%CompareStrings( Variable,'Gradient Pressure') ) then
                 enu = VariableNames%GradientPressure
+            ELSEIF ( Comp%CompareStrings( Variable,'Second Gradient Pressure') ) then
+                enu = VariableNames%SecondGradientPressure
             ELSEIF ( Comp%CompareStrings( Variable,'First Piola Stress') ) then
                 enu = VariableNames%FirstPiolaStress
             ELSEIF ( Comp%CompareStrings( Variable,'Spatial Relative Velocity') ) then
@@ -1299,7 +1301,7 @@ module ModProbe
             real(8)                                 :: HomogenizedJacobian, HomogenizedJacobianWrite(1)
             real(8)                                 :: HomogenizedJacobianRate, HomogenizedJacobianRateWrite(1)
             real(8)                                 :: HomogenizedJdivV, HomogenizedJdivVWrite(1)
-            real(8)                                 :: HomogenizedU(3)
+            real(8)                                 :: HomogenizedU(3), HomogenizedPressureSecondGradient(9)
             !************************************************************************************
             ! Test if the probe is active
             if (.not. this%Active) then
@@ -1409,6 +1411,14 @@ module ModProbe
                                     call GetHomogenizedPressureGradientBiphasic( FEA%AnalysisSettings, FEA%ElementList, FEA%P, HomogenizedPressureGradient )
                                     
                                     call this%WriteOnFile(FEA%Time , HomogenizedPressureGradient)
+                                    
+                                ! Writing Fluid Gradient Pressure
+                                case (VariableNames%SecondGradientPressure)
+
+                                    ! Computing Homogenized Pressure
+                                    call GetHomogenizedPressureSecondGradBiphasic( FEA%AnalysisSettings, FEA%ElementList, FEA%P, HomogenizedPressureSecondGradient )
+                                    
+                                    call this%WriteOnFile(FEA%Time , HomogenizedPressureSecondGradient)
                                 
                                 ! Writing Relative Velocity wX
                                 case (VariableNames%ReferentialRelativeVelocity)

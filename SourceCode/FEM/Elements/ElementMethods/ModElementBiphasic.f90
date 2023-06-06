@@ -39,6 +39,7 @@ module ModElementBiphasic
             procedure :: ElementInternalForce_fluid
             procedure :: ElementInternalForce_solid
             procedure :: MatrixH_ThreeDimensional
+            procedure :: MatrixHref_ThreeDimensional
             procedure :: MatrixQ_ThreeDimensional
             procedure :: GetGlobalMapping_fluid
             procedure :: GetElementNumberDOF_fluid
@@ -54,6 +55,8 @@ module ModElementBiphasic
             procedure :: ElementConstructor => ElementConstructorBiphasic
             procedure :: ElementInterpolation_fluid
             procedure :: Matrix_Nfe_and_Hfe
+            procedure :: Matrix_Nfe_and_Hfe_and_transHYJSe
+            procedure :: Matrix_Nfe_and_Hfe_and_HYJSe
             
     endtype    
         
@@ -1353,7 +1356,92 @@ module ModElementBiphasic
 		    !************************************************************************************
         end subroutine
         !==========================================================================================
-        
+        !==========================================================================================
+        ! Method MatrixH ThreeDimensional: Routine that evaluates the matrix H in Three-Dimensional
+        ! case.
+        !------------------------------------------------------------------------------------------
+        ! Modifications:
+        ! Date:         Author:
+        !==========================================================================================
+        subroutine MatrixHref_ThreeDimensional(this, AnalysisSettings, NaturalCoord, H, detJ , FactorAxi)
+ 		    !************************************************************************************
+            ! DECLARATIONS OF VARIABLES
+		    !************************************************************************************
+            ! Modules and implicit declarations
+            ! -----------------------------------------------------------------------------------
+
+            implicit none
+
+            ! Object
+            ! -----------------------------------------------------------------------------------
+            class(ClassElementBiphasic) :: this
+
+            ! Input variables
+            ! -----------------------------------------------------------------------------------
+            real(8) , dimension(:) , intent(in) :: NaturalCoord
+
+            ! Output variables
+            ! -----------------------------------------------------------------------------------
+            type(ClassAnalysis) , intent(inout) :: AnalysisSettings
+            real(8) , dimension(:,:), intent(out) :: H
+            real(8) , intent(out) :: detJ , FactorAxi
+
+            ! Internal variables
+            ! -----------------------------------------------------------------------------------
+            integer :: i , j , n , nNodes , DimProb , nDOFel
+            real(8) , dimension(:,:) , pointer :: DifSF
+            real(8) , dimension(AnalysisSettings%AnalysisDimension,AnalysisSettings%AnalysisDimension) :: Jacob
+ 		    !************************************************************************************
+
+		    !************************************************************************************
+            ! EVALUATE THE LINEAR MATRIX H IN THREE-DIMENSIONAL CASE
+		    !************************************************************************************
+
+            FactorAxi = 1.0d0
+
+            nNodes = this%GetNumberOfNodes_fluid()
+
+            DimProb = AnalysisSettings%AnalysisDimension
+
+            DifSF => DifSF_Memory ( 1:nNodes , 1:DimProb )
+
+            call this%GetDifShapeFunctions_fluid(NaturalCoord , DifSF )
+
+            !Jacobian
+            Jacob=0.0d0
+            do i=1,DimProb
+                do j=1,DimProb
+                    do n=1,nNodes
+                        Jacob(i,j)=Jacob(i,j) + DifSf(n,i) * this%ElementNodes_fluid(n)%Node%CoordX(j)
+                    enddo
+                enddo
+            enddo
+
+            !Determinant of the Jacobian
+            detJ = det(Jacob)
+            if (detJ<=1.0d-13 ) then
+                return
+            endif
+
+            !Inverse of the Jacobian
+            Jacob = inverse(Jacob)
+
+            !Convert the derivatives in the natural coordinates to global coordinates.
+            do i=1,size(DifSf,dim=1)
+                !call MatrixVectorMultiply ( 'N', Jacob, DifSf(i,:) , DifSf(i,:), 1.0d0, 0.0d0 ) !y := alpha*op(A)*x + beta*y
+                DifSf(i,:) = matmul( Jacob , DifSf(i,:) )
+            enddo
+
+            nDOFel = size(H,2)
+
+            H = 0.0d0
+            H(1,[(i,i=1,nDOFel,1)])=DifSF(:,1) !d_Pressure/d_x1
+            H(2,[(i,i=1,nDOFel,1)])=DifSF(:,2) !d_Pressure/d_x2
+            H(3,[(i,i=1,nDOFel,1)])=DifSF(:,3) !d_Pressure/d_x3
+
+		    !************************************************************************************
+        end subroutine
+        !==========================================================================================
         
         !------------------------------------------------------------------------------------------
         !---------------------------- BIPHASIC ELEMENT PROCESDURES --------------------------------
@@ -1564,7 +1652,332 @@ module ModElementBiphasic
             enddo
 		    !************************************************************************************
         end subroutine
+        
+                !==========================================================================================
+        
+        subroutine Matrix_Nfe_and_Hfe_and_HYJSe(this, AnalysisSettings, Nfe, Hfe, HYJS_e)
+        
+            use ModMathRoutines 
+		    !************************************************************************************
+            ! DECLARATIONS OF VARIABLES
+		    !************************************************************************************
+            ! Modules and implicit declarations
+            ! -----------------------------------------------------------------------------------
+            implicit none
+
+            ! Object
+            ! -----------------------------------------------------------------------------------
+            class(ClassElementBiphasic) :: this
+
+            ! Input variables
+            ! -----------------------------------------------------------------------------------
+            type(ClassAnalysis) :: AnalysisSettings
+
+            ! Output variables
+            ! -----------------------------------------------------------------------------------
+            real(8), pointer,  dimension(:)   :: Nfe
+            real(8), pointer,  dimension(:,:) :: Hfe
+            real(8), pointer,  dimension(:,:) :: HYJS_e
+
+
+            ! Internal variables
+            ! -----------------------------------------------------------------------------------
+            integer							    :: i, n, j, NDOFelfluid , gp, DimProb, nNodesFluid
+            real(8)							    :: detJX, FactorAxiX
+            real(8) , pointer , dimension(:)    :: Weight
+            real(8) , pointer , dimension(:,:)  :: NaturalCoord
+            real(8) , pointer , dimension(:,:)  :: Hfpg 
+            real(8) , pointer , dimension(:)    :: Nfpg 
+            real(8) , pointer , dimension(:,:)  :: transHY, transHYJ, transHYJS
+            real(8) , pointer , dimension(:)    :: Y
+            real(8) , pointer , dimension(:,:)  :: Ybar, Moment_J, invMoment_J, invMoment_J_bar, SymmetryOperator, H
+
+
+		    !************************************************************************************
+
+		    !************************************************************************************
+            ! ELEMENT INTERNAL FORCE CALCULATION
+		    !************************************************************************************
+            
+            ! Number of degrees of freedom
+            call this%GetElementNumberDOF_fluid(AnalysisSettings,NDOFelfluid)
+            
+            DimProb = AnalysisSettings%AnalysisDimension
+            
+            allocate(transHY(NDOFelfluid,9), transHYJ(NDOFelfluid,9), H(3,NDOFelfluid)) !transHYJS_e(NDOFelfluid,9)
+            allocate(HYJS_e(9,8), transHYJS(8,9))
+            allocate(Y(3))
+            allocate(Ybar(3,9))
+            !allocate(Moment_J(3,3))
+            allocate(invMoment_J(3,3))
+            allocate(invMoment_J_bar(9,9))
+            allocate(SymmetryOperator(9,9))
+            
+            Y = 0.0d0
+            Ybar = 0.0d0
+            invMoment_J = 0.0d0
+            invMoment_J_bar = 0.0d0
+            SymmetryOperator = 0.0d0
+            
+            transHY = 0.0d0
+            transHYJ = 0.0d0
+            transHYJS = 0.0d0
+            HYJS_e = 0.0d0
+            H = 0.0d0
+            
+            SymmetryOperator(1,1) = 1.0d0
+            SymmetryOperator(2,2) = 1.0d0/2.0d0
+            SymmetryOperator(3,3) = 1.0d0/2.0d0
+            SymmetryOperator(4,4) = 1.0d0/2.0d0
+            SymmetryOperator(5,5) = 1.0d0
+            SymmetryOperator(6,6) = 1.0d0/2.0d0
+            SymmetryOperator(7,7) = 1.0d0/2.0d0
+            SymmetryOperator(8,8) = 1.0d0/2.0d0
+            SymmetryOperator(9,9) = 1.0d0
+            
+            SymmetryOperator(2,4) = 1.0d0/2.0d0
+            SymmetryOperator(4,2) = 1.0d0/2.0d0
+            SymmetryOperator(3,7) = 1.0d0/2.0d0
+            SymmetryOperator(7,3) = 1.0d0/2.0d0
+            SymmetryOperator(6,8) = 1.0d0/2.0d0
+            SymmetryOperator(8,6) = 1.0d0/2.0d0
+
+            ! Allocating Memory
+            Nfpg => Nfpg_Memory( 1:NDOFelfluid )
+            Hfpg => Hfpg_Memory( 1:3 , 1:NDOFelfluid )
+            !transHYJS => transHYJS_Memory(1:8, 1:NDOFelfluid)
+                        
+            Nfe=0.0d0
+            Hfe=0.0d0
+            Nfpg=0.0d0
+            Hfpg=0.0d0
+
+            ! Retrieving fluid gauss points parameters for numerical integration
+            call this%GetGaussPoints_fluid(NaturalCoord,Weight)
+            
+            ! Fluid number of nodes
+            nNodesFluid = this%GetNumberOfNodes_fluid()
+
+            !Loop over fluid gauss points
+            do gp = 1, size(NaturalCoord,dim=1)
+
+                !Get matrix Nfpg and Hfpg
+                call MatrixNfpgHfpg_ThreeDimensional(this, AnalysisSettings , NaturalCoord(gp,:) , Nfpg , Hfpg , detJX)
+
+                !Quadrature
+                Nfe = Nfe + Nfpg*Weight(gp)*detJX
+                Hfe = Hfe + Hfpg*Weight(gp)*detJX
+
+                do i = 1,3
+                    call this%ElementInterpolation( [( this%ElementNodes(n)%Node%CoordX(i),n=1,nNodesFluid )], &
+                                                                        NaturalCoord(gp,:), Y(i) )
+                enddo
+                    
+                Ybar(1,1:3) = Y
+                Ybar(2,4:6) = Y
+                Ybar(3,7:9) = Y
+                
+                !do i = 1,3
+                !    do j = 1, 3
+                !        Moment_J(i,j) = Y(i)*Y(j)        
+                !    end do
+                !end do
+                    
+                !invMoment_J = inverse(Moment_J)
+                !    
+                !invMoment_J_bar(1:3,1:3) = invMoment_J
+                !invMoment_J_bar(4:6,4:6) = invMoment_J
+                !invMoment_J_bar(7:9,7:9) = invMoment_J
+                
+                invMoment_J = inverse(AnalysisSettings%Volume_Moment_J)
+                
+                invMoment_J_bar(1:3,1:3) = invMoment_J
+                invMoment_J_bar(4:6,4:6) = invMoment_J
+                invMoment_J_bar(7:9,7:9) = invMoment_J
+                
+                
+                !Get matrix H
+                call this%MatrixHref_ThreeDimensional(AnalysisSettings, NaturalCoord(gp,:), H, detJX , FactorAxiX)
+                
+                ! - transpose(H)*Ybar*J*S*lambda
+                
+                transHY = 0.0d0
+                transHYJ = 0.0d0
+                transHYJS = 0.0d0
+                            
+                call MatrixMatrixMultiply_Trans(H,Ybar, transHY, 1.0d0, 1.0d0 ) 
+                call MatrixMatrixMultiply(transHY,invMoment_J_bar, transHYJ, 1.0d0, 1.0d0 ) 
+                call MatrixMatrixMultiply_TransB(transHYJ,SymmetryOperator, transHYJS, 1.0d0, 1.0d0 ) 
+                                
+                HYJS_e = HYJS_e + transpose(transHYJS)*Weight(gp)*detJX
+                
+            enddo
+		    !************************************************************************************
+        end subroutine
         !==========================================================================================
+        
+        !==========================================================================================
+        
+        subroutine Matrix_Nfe_and_Hfe_and_transHYJSe(this, AnalysisSettings, Nfe, Hfe, transHYJS_e)
+        
+            use ModMathRoutines 
+		    !************************************************************************************
+            ! DECLARATIONS OF VARIABLES
+		    !************************************************************************************
+            ! Modules and implicit declarations
+            ! -----------------------------------------------------------------------------------
+            implicit none
+
+            ! Object
+            ! -----------------------------------------------------------------------------------
+            class(ClassElementBiphasic) :: this
+
+            ! Input variables
+            ! -----------------------------------------------------------------------------------
+            type(ClassAnalysis) :: AnalysisSettings
+
+            ! Output variables
+            ! -----------------------------------------------------------------------------------
+            real(8), pointer,  dimension(:)   :: Nfe
+            real(8), pointer,  dimension(:,:) :: Hfe
+            real(8), pointer,  dimension(:,:) :: transHYJS_e
+
+
+            ! Internal variables
+            ! -----------------------------------------------------------------------------------
+            integer							    :: i, n, j, NDOFelfluid , gp, DimProb, nNodesFluid
+            real(8)							    :: detJX, FactorAxiX
+            real(8) , pointer , dimension(:)    :: Weight
+            real(8) , pointer , dimension(:,:)  :: NaturalCoord
+            real(8) , pointer , dimension(:,:)  :: Hfpg 
+            real(8) , pointer , dimension(:)    :: Nfpg 
+            real(8) , pointer , dimension(:,:)  :: transHY, transHYJ, transHYJS
+            real(8) , pointer , dimension(:)    :: Y
+            real(8) , pointer , dimension(:,:)  :: Ybar, Moment_J, invMoment_J, invMoment_J_bar, SymmetryOperator, H
+
+
+		    !************************************************************************************
+
+		    !************************************************************************************
+            ! ELEMENT INTERNAL FORCE CALCULATION
+		    !************************************************************************************
+            
+            ! Number of degrees of freedom
+            call this%GetElementNumberDOF_fluid(AnalysisSettings,NDOFelfluid)
+            
+            DimProb = AnalysisSettings%AnalysisDimension
+            
+            allocate(transHY(NDOFelfluid,9), transHYJ(NDOFelfluid,9), H(3,NDOFelfluid)) !transHYJS_e(NDOFelfluid,9)
+            allocate(transHYJS(8, 9))
+            allocate(Y(3))
+            allocate(Ybar(3,9))
+            !allocate(Moment_J(3,3))
+            allocate(invMoment_J(3,3))
+            allocate(invMoment_J_bar(9,9))
+            allocate(SymmetryOperator(9,9))
+            
+            Y = 0.0d0
+            Ybar = 0.0d0
+            invMoment_J = 0.0d0
+            invMoment_J_bar = 0.0d0
+            SymmetryOperator = 0.0d0
+            
+            transHY = 0.0d0
+            transHYJ = 0.0d0
+            transHYJS = 0.0d0
+            transHYJS_e = 0.0d0
+            H = 0.0d0
+            
+            SymmetryOperator(1,1) = 1.0d0
+            SymmetryOperator(2,2) = 1.0d0/2.0d0
+            SymmetryOperator(3,3) = 1.0d0/2.0d0
+            SymmetryOperator(4,4) = 1.0d0/2.0d0
+            SymmetryOperator(5,5) = 1.0d0
+            SymmetryOperator(6,6) = 1.0d0/2.0d0
+            SymmetryOperator(7,7) = 1.0d0/2.0d0
+            SymmetryOperator(8,8) = 1.0d0/2.0d0
+            SymmetryOperator(9,9) = 1.0d0
+            
+            SymmetryOperator(2,4) = 1.0d0/2.0d0
+            SymmetryOperator(4,2) = 1.0d0/2.0d0
+            SymmetryOperator(3,7) = 1.0d0/2.0d0
+            SymmetryOperator(7,3) = 1.0d0/2.0d0
+            SymmetryOperator(6,8) = 1.0d0/2.0d0
+            SymmetryOperator(8,6) = 1.0d0/2.0d0
+
+            ! Allocating Memory
+            Nfpg => Nfpg_Memory( 1:NDOFelfluid )
+            Hfpg => Hfpg_Memory( 1:3 , 1:NDOFelfluid )
+            !transHYJS => transHYJS_Memory(1:8, 1:NDOFelfluid)
+                        
+            Nfe=0.0d0
+            Hfe=0.0d0
+            Nfpg=0.0d0
+            Hfpg=0.0d0
+
+            ! Retrieving fluid gauss points parameters for numerical integration
+            call this%GetGaussPoints_fluid(NaturalCoord,Weight)
+            
+            ! Fluid number of nodes
+            nNodesFluid = this%GetNumberOfNodes_fluid()
+
+            !Loop over fluid gauss points
+            do gp = 1, size(NaturalCoord,dim=1)
+
+                !Get matrix Nfpg and Hfpg
+                call MatrixNfpgHfpg_ThreeDimensional(this, AnalysisSettings , NaturalCoord(gp,:) , Nfpg , Hfpg , detJX)
+
+                !Quadrature
+                Nfe = Nfe + Nfpg*Weight(gp)*detJX
+                Hfe = Hfe + Hfpg*Weight(gp)*detJX
+
+                do i = 1,3
+                    call this%ElementInterpolation( [( this%ElementNodes(n)%Node%CoordX(i),n=1,nNodesFluid )], &
+                                                                        NaturalCoord(gp,:), Y(i) )
+                enddo
+                    
+                Ybar(1,1:3) = Y
+                Ybar(2,4:6) = Y
+                Ybar(3,7:9) = Y
+                
+                !do i = 1,3
+                !    do j = 1, 3
+                !        Moment_J(i,j) = Y(i)*Y(j)        
+                !    end do
+                !end do
+                    
+                !invMoment_J = inverse(Moment_J)
+                !    
+                !invMoment_J_bar(1:3,1:3) = invMoment_J
+                !invMoment_J_bar(4:6,4:6) = invMoment_J
+                !invMoment_J_bar(7:9,7:9) = invMoment_J
+                
+                invMoment_J = inverse(AnalysisSettings%Volume_Moment_J)
+                
+                invMoment_J_bar(1:3,1:3) = invMoment_J
+                invMoment_J_bar(4:6,4:6) = invMoment_J
+                invMoment_J_bar(7:9,7:9) = invMoment_J
+                
+                !Get matrix H
+                call this%MatrixHref_ThreeDimensional(AnalysisSettings, NaturalCoord(gp,:), H, detJX , FactorAxiX)
+                
+                ! - transpose(H)*Ybar*J*S*lambda
+                
+                transHY = 0.0d0
+                transHYJ = 0.0d0
+                transHYJS = 0.0d0
+                
+                call MatrixMatrixMultiply_Trans(H,Ybar, transHY, 1.0d0, 1.0d0 ) 
+                call MatrixMatrixMultiply(transHY,invMoment_J_bar, transHYJ, 1.0d0, 1.0d0 ) 
+                call MatrixMatrixMultiply_TransB(transHYJ,SymmetryOperator, transHYJS, 1.0d0, 1.0d0 ) 
+                                
+                transHYJS_e = transHYJS_e + transHYJS*Weight(gp)*detJX
+                
+            enddo
+		    !************************************************************************************
+        end subroutine
+        !==========================================================================================
+        
 
          !==========================================================================================
         ! Method MatrixNfpgHfpg_ThreeDimensional: Routine that evaluates the matrix Nfpg e Hfpg in Three-Dimensional

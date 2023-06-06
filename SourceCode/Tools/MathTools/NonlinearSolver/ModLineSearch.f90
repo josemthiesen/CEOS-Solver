@@ -263,7 +263,7 @@ module ModLineSearch
                 if (eta.gt.1.0) then
                     eta = 0.99
                 elseif(eta.lt.1.0e-3) then
-                    eta = 1.0e-2                        
+                    eta = 1.0e-2                      
                 end if
                     
                 if ( (eta_old-eta).lt.1e-12) then

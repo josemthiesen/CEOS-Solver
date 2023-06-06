@@ -814,9 +814,9 @@ module ModMultiscaleHomogenizations
         
             NumberOfThreads = omp_get_max_threads()
             call omp_set_num_threads( NumberOfThreads )
-            !$OMP PARALLEL DEFAULT(PRIVATE)                                &
-                           Shared( AnalysisSettings,  ElementList, P, TotalVolX, FactorAxiX, HomogenizedGradientPressure, DimProb)         
-            !$OMP DO
+            !!$OMP PARALLEL DEFAULT(PRIVATE)                                &
+            !               Shared( AnalysisSettings,  ElementList, P, TotalVolX, FactorAxiX, HomogenizedGradientPressure, DimProb)         
+            !!$OMP DO
             !Loop over Elements
             do e = 1,size(ElementList)
             
@@ -874,16 +874,217 @@ module ModMultiscaleHomogenizations
                    call MatrixVectorMultiply ( 'T', F,  gradP, GradPX, 1.0d0, 0.0d0 ) !  y := alpha*op(A)*x + beta*y
             
                    !Homogenized Pressure Gradient
-                   !$OMP CRITICAL
+                   !!$OMP CRITICAL
                    HomogenizedGradientPressure = HomogenizedGradientPressure + (GradPX*Weight(gp)*detJX*FactorAxiX)/TotalVolX
-                   !$OMP END CRITICAL          
+                   !!$OMP END CRITICAL          
                 enddo
             enddo
-            !$OMP END DO
-            !$OMP END PARALLEL
+            !!$OMP END DO
+            !!$OMP END PARALLEL
             !************************************************************************************
         end subroutine
         !=================================================================================================
+        
+ !=================================================================================================
+        subroutine GetHomogenizedPressureSecondGradBiphasic( AnalysisSettings, ElementList, P, HomogenizedSecondGradientPressure )
+       
+            ! NOTE: Pressure Gradient homogenization realized on the solid reference configuration.
+            use ModMathRoutines
+
+            !************************************************************************************
+            ! DECLARATIONS OF VARIABLES
+            !************************************************************************************
+            ! Modules and implicit declarations
+            ! -----------------------------------------------------------------------------------
+            implicit none
+
+            ! Object
+            ! -----------------------------------------------------------------------------------
+            type  (ClassAnalysis)                                    :: AnalysisSettings
+            type  (ClassElementsWrapper),     pointer, dimension(:)  :: ElementList
+
+            ! Input variables
+            ! ----------------------------------------------- ------------------------------------
+            real(8), dimension(:)       :: P   ! Global vector of fluid pressure
+
+            ! Input/Output variables
+            ! -----------------------------------------------------------------------------------
+            real(8), dimension(9)       :: HomogenizedSecondGradientPressure
+
+            ! Internal variables
+            ! -----------------------------------------------------------------------------------
+            integer							     :: e, gp, i, j, n, DimProb
+            real(8)							     :: TotalVolX, rX, detJX
+            real(8) , pointer , dimension(:)     :: Weight
+            real(8) , pointer , dimension(:,:)   :: NaturalCoord
+            real(8)                              :: detJ , FactorAxiX
+            real(8) , dimension(AnalysisSettings%AnalysisDimension,AnalysisSettings%AnalysisDimension) :: JacobX
+            real(8) , dimension(:)   , pointer   :: ShapeFunctionsFluid
+            real(8) , dimension(:,:) , pointer   :: DifSF
+        
+            class(ClassElementBiphasic), pointer :: ElBiphasic
+            real(8), pointer, dimension(:)       :: Pe
+            real(8)                              :: Pressure_GP
+            integer , pointer , dimension(:)     :: GM_fluid
+            integer                              :: nDOFel_fluid, nNodesFluid, nNodesSolid
+            real(8)                              :: F(3,3)
+            real(8), dimension(3)                :: gradP, GradPX
+            real(8) , pointer , dimension(:,:)   :: H
+            integer                              :: NumberOfThreads
+            real(8), allocatable, dimension(:)   :: Y, STYgradPX
+            real(8), allocatable, dimension(:,:) :: Ybar, Moment_J, invMoment_J, invMoment_J_bar, SymmetryOperator
+            real(8), allocatable, dimension(:,:) :: STinvtrans, STY 
+        
+            !************************************************************************************
+            ! FLUID PRESSURE GRADIENT HOMOGENISATION - SOLID REFERENCE CONFIGURATION
+            !************************************************************************************      
+            DimProb = AnalysisSettings%AnalysisDimension
+            
+            allocate(STinvtrans(9,9), STY(9,3), STYgradPX(9))
+            
+            allocate(Y(3))
+            allocate(Ybar(3,9))
+            allocate(Moment_J(3,3))
+            allocate(invMoment_J(3,3))
+            allocate(invMoment_J_bar(9,9))
+            allocate(SymmetryOperator(9,9))
+            
+            STinvtrans = 0.0d0
+            STY = 0.0d0
+            STYgradPX = 0.0d0
+            
+            Y = 0.0d0
+            Ybar = 0.0d0
+            Moment_J = 0.0d0
+            invMoment_J = 0.0d0
+            invMoment_J_bar = 0.0d0
+            SymmetryOperator = 0.0d0
+            
+            SymmetryOperator(1,1) = 1.0d0
+            SymmetryOperator(2,2) = 1.0d0/2.0d0
+            SymmetryOperator(3,3) = 1.0d0/2.0d0
+            SymmetryOperator(4,4) = 1.0d0/2.0d0
+            SymmetryOperator(5,5) = 1.0d0
+            SymmetryOperator(6,6) = 1.0d0/2.0d0
+            SymmetryOperator(7,7) = 1.0d0/2.0d0
+            SymmetryOperator(8,8) = 1.0d0/2.0d0
+            SymmetryOperator(9,9) = 1.0d0
+            
+            SymmetryOperator(2,4) = 1.0d0/2.0d0
+            SymmetryOperator(4,2) = 1.0d0/2.0d0
+            SymmetryOperator(3,7) = 1.0d0/2.0d0
+            SymmetryOperator(7,3) = 1.0d0/2.0d0
+            SymmetryOperator(6,8) = 1.0d0/2.0d0
+            SymmetryOperator(8,6) = 1.0d0/2.0d0
+            
+            ! Solid reference total volume
+            TotalVolX  = AnalysisSettings%TotalVolX
+           
+            HomogenizedSecondGradientPressure = 0.0d0
+        
+            !NumberOfThreads = omp_get_max_threads()
+            !call omp_set_num_threads( NumberOfThreads )
+            !!$OMP PARALLEL DEFAULT(PRIVATE)                                &
+            !               Shared( AnalysisSettings,  ElementList, P, TotalVolX, FactorAxiX, HomogenizedSecondGradientPressure, DimProb)         
+            !!$OMP DO
+            !Loop over Elements
+            do e = 1,size(ElementList)
+            
+                ! Aponta o objeto ElBiphasic para o ElementList(e)%El mas com o type correto ClassElementBiphasic
+                call ConvertElementToElementBiphasic(ElementList(e)%el,  ElBiphasic)
+                ! Number of degrees of freedom of fluid
+                call ElBiphasic%GetElementNumberDOF_fluid(AnalysisSettings, nDOFel_fluid)
+                GM_fluid => GMfluid_Memory(1:nDOFel_fluid)
+                Pe => Pe_Memory(1:nDOFel_fluid)
+            
+                call ElBiphasic%GetGlobalMapping_Fluid(AnalysisSettings,GM_Fluid)
+                Pe = P(GM_fluid)
+            
+                ! Fluid number of nodes
+                nNodesFluid = ElBiphasic%GetNumberOfNodes_fluid()
+
+                !ShapeFunctionsFluid =>  Nf_Memory ( 1:nNodesFluid )
+                nNodesSolid = ElementList(e)%El%GetNumberOfNodes()
+                DifSF => DifSF_Memory ( 1:nNodesSolid , 1:DimProb )
+            
+                ! Allocating matrix H
+                H => H_Memory( 1:3 , 1:nNodesFluid )
+
+                ! Retrieving fluid gauss points parameters for numerical integration
+                call ElBiphasic%GetGaussPoints_fluid(NaturalCoord,Weight)
+
+                !Loop over gauss points
+                do gp = 1, size(NaturalCoord,dim=1)
+
+                   ! Fluid Diff Shape Functions 
+                   ! call ElementList(e)%El%GetDifShapeFunctions(NaturalCoord(gp,:) , DifSF )
+                   call ElBiphasic%GetDifShapeFunctions_fluid(NaturalCoord(gp,:) , DifSF )
+                   !Jacobian
+                   JacobX=0.0d0
+                   do i=1,DimProb
+                       do j=1,DimProb
+                           do n=1,nNodesFluid
+                               JacobX(i,j)=JacobX(i,j) + DifSf(n,i) * ElBiphasic%ElementNodes_fluid(n)%Node%CoordX(j)
+                           enddo
+                       enddo
+                   enddo
+                
+                   !Determinant of the Jacobian
+                   detJX = 0.0d0
+                   detJX = det(JacobX)
+                   
+                   !Get matrix Ybar
+
+                    do i = 1,DimProb
+                        call ElBiphasic%ElementInterpolation( [( ElBiphasic%ElementNodes(n)%Node%CoordX(i),n=1,nNodesFluid )], &
+                                                                            NaturalCoord(gp,:), Y(i) )
+                    enddo
+                    
+                    Ybar(1,1:3) = Y
+                    Ybar(2,4:6) = Y
+                    Ybar(3,7:9) = Y
+                    
+                    !Get matrix Jbar
+                   
+                    invMoment_J = inverse(AnalysisSettings%Volume_Moment_J)
+                
+                    invMoment_J_bar(1:3,1:3) = invMoment_J
+                    invMoment_J_bar(4:6,4:6) = invMoment_J
+                    invMoment_J_bar(7:9,7:9) = invMoment_J
+                    
+                   !!Get matrix H
+                   !call ElBiphasic%MatrixH_ThreeDimensional(AnalysisSettings, NaturalCoord(gp,:), H, detJ , FactorAxiX)
+
+                   !gradP = matmul(H, Pe)
+                   !!Get F
+                   !F = ElementList(e)%El%GaussPoints(gp)%F
+               
+                   !GradPX = 0.0d0
+                   !call MatrixVectorMultiply ( 'T', F,  gradP, GradPX, 1.0d0, 0.0d0 ) !  y := alpha*op(A)*x + beta*y
+                   
+                    call ElBiphasic%MatrixHref_ThreeDimensional(AnalysisSettings, NaturalCoord(gp,:), H, detJ , FactorAxiX)
+                   GradPX = matmul(H,Pe)
+                   
+                   STinvtrans = 0.0d0
+                   STY = 0.0d0
+                   STYgradPX = 0.0d0
+                   
+                   call MatrixMatrixMultiply_TransB(SymmetryOperator,invMoment_J_bar, STinvtrans, 1.0d0, 1.0d0 ) ! C := alpha*op(A)*op(B) + beta*C,
+                   call MatrixMatrixMultiply_TransB(STinvtrans,Ybar, STY, 1.0d0, 1.0d0 )
+                   call MatrixVectorMultiply('N', STY, GradPX, STYgradPX, 1.0d0, 1.0d0 )
+                   
+                   !Homogenized Pressure Gradient
+                   !!$OMP CRITICAL
+                   HomogenizedSecondGradientPressure = HomogenizedSecondGradientPressure + (STYgradPX*Weight(gp)*detJX*FactorAxiX)/TotalVolX
+                   !!$OMP END CRITICAL          
+                enddo
+            enddo
+            !!$OMP END DO
+            !!$OMP END PARALLEL
+            !************************************************************************************
+        end subroutine
+        !=================================================================================================
+    
     
         !=================================================================================================
         subroutine GetHomogenizedReferentialRelativeVelocitywXBiphasic( AnalysisSettings, ElementList, VSolid, HomogenizedwX )

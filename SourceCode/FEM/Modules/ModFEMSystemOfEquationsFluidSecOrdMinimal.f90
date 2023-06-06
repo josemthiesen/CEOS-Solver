@@ -1,17 +1,16 @@
 !##################################################################################################
 ! This module has the system of equations of  FEM for the Fluid (Biphasic Analysis)
 !--------------------------------------------------------------------------------------------------
-! Date: 2019/05
+! Date: 2023/04
 !
-! Authors:  Bruno Klahr
-!           Thiago Andre Carniel
+! Authors:  José Luís M. Thiesen
 !           
-!!------------------------------------------------------------------------------------------------
+!------------------------------------------------------------------------------------------------
 ! Modifications:
 ! Date:         Author:  
 !                               
 !##################################################################################################
-module ModFEMSystemOfEquationsFluidMinimal
+module ModFEMSystemOfEquationsFluidSecOrdMinimal
 
     use ModFEMSystemOfEquationsFluid
     use ModAnalysis
@@ -24,30 +23,30 @@ module ModFEMSystemOfEquationsFluidMinimal
 
     implicit none
 
-    type , extends(ClassFEMSystemOfEquationsFluid) :: ClassFEMSystemOfEquationsFluidMinimal
+    type , extends(ClassFEMSystemOfEquationsFluid) :: ClassFEMSystemOfEquationsFluidSecOrdMinimal
 
    
     contains
 
-        procedure :: EvaluateSystem         => EvaluateMinimalR
-        procedure :: EvaluateGradientSparse => EvaluateMinimalKt
-        procedure :: PostUpdate             => FEMUpdateMeshMinimal
+        procedure :: EvaluateSystem         => EvaluateSecondOrderMinimalR
+        procedure :: EvaluateGradientSparse => EvaluateSecondOrderMinimalKt
+        procedure :: PostUpdate             => FEMUpdateMeshSecondOrderMinimal
 
     end type
 
     contains
     
     !=================================================================================================
-    subroutine EvaluateMinimalR(this,X,R)
+    subroutine EvaluateSecondOrderMinimalR(this,X,R)
 
         use ModInterfaces
-        class(ClassFEMSystemOfEquationsFluidMinimal) :: this
+        class(ClassFEMSystemOfEquationsFluidSecOrdMinimal) :: this
         real(8),dimension(:)  :: X,R
         
         integer               :: nDOFFluid
         real(8)               :: HomogenizedPressure,  TotalVolX
         real(8), dimension(3) :: HomogenizedGradientPressure
-
+        real(8), dimension(9) :: HomogenizedSecondGradientPressure
         
        
             ! Compute nDOFFluid
@@ -65,28 +64,31 @@ module ModFEMSystemOfEquationsFluidMinimal
                 return
             endif
 
-            call ExternalFluxMultiscaleMinimal( this%ElementList, this%AnalysisSettings, X((nDOFFluid+4)),  X((nDOFFluid+1):(nDOFFluid+3)), this%Fext )
+            !call ExternalFluxMultiscaleMinimal( this%ElementList, this%AnalysisSettings, X((nDOFFluid+4)),  X((nDOFFluid+1):(nDOFFluid+3)), this%Fext )
+            
+            call ExternalFluxMultiscaleSecOrdMinimal( this%ElementList, this%AnalysisSettings, X((nDOFFluid+4)),  X((nDOFFluid+1):(nDOFFluid+3)), X((nDOFFluid+5):(nDOFFluid+13)), this%Fext )
             
             call GetHomogenizedPressureBiphasic(this%AnalysisSettings, this%ElementList, X(1:nDOFFluid), HomogenizedPressure)
             call GetHomogenizedPressureGradientBiphasic( this%AnalysisSettings, this%ElementList, X(1:nDOFFluid), HomogenizedGradientPressure )                
-            
+            call GetHomogenizedPressureSecondGradBiphasic( this%AnalysisSettings, this%ElementList, X(1:nDOFFluid), HomogenizedSecondGradientPressure )
+
             TotalVolX = this%AnalysisSettings%TotalVolX
             ! Residual
             R = 0.0d0
             R(1:nDOFFluid)                  =  this%Fint - this%Fext
-            R((nDOFFluid+1):(nDOFFluid+3))  =  TotalVolX*( this%GradPmacro_current - HomogenizedGradientPressure )
-            R((nDOFFluid+4):)               =  TotalVolX*( this%Pmacro_current     - HomogenizedPressure )
-
+            R((nDOFFluid+1):(nDOFFluid+3))  =  TotalVolX*( this%GradPmacro_current          - HomogenizedGradientPressure )
+            R((nDOFFluid+4):(nDOFFluid+4))  =  TotalVolX*( this%Pmacro_current              - HomogenizedPressure )
+            R((nDOFFluid+5):(nDOFFluid+13)) =  TotalVolX*( this%GradGradPMacro_current      - HomogenizedSecondGradientPressure )
 
     end subroutine
     !=================================================================================================
     
     !=================================================================================================
-    subroutine EvaluateMinimalKt(this,X,R,G)
+    subroutine EvaluateSecondOrderMinimalKt(this,X,R,G)
 
         use ModInterfaces
         use ModMathRoutines
-        class(ClassFEMSystemOfEquationsFluidMinimal)        :: this
+        class(ClassFEMSystemOfEquationsFluidSecOrdMinimal)        :: this
         class (ClassGlobalSparseMatrix), pointer            :: G
         real(8),dimension(:)                                :: X , R
         integer                                             :: nDOFFluid
@@ -94,7 +96,7 @@ module ModFEMSystemOfEquationsFluidMinimal
         
         call this%AnalysisSettings%GetTotalNumberOfDOF_fluid(this%GlobalNodesList, nDOFFluid)
         ! X -> Global pressure of biphasic analysis   
-        call TangentStiffnessMatrixFluidMinimal(this%AnalysisSettings , this%ElementList, nDOFFluid , this%Kg )
+        call TangentStiffnessMatrixFluidSecOrdMinimal(this%AnalysisSettings , this%ElementList, nDOFFluid , this%Kg )
 
         ! The dirichelet BC (Fluid -> pressure) are being applied in the system Kx=R and not in Kx = -R
         R = -R
@@ -109,9 +111,9 @@ module ModFEMSystemOfEquationsFluidMinimal
     !=================================================================================================
 
     !=================================================================================================
-    subroutine FEMUpdateMeshMinimal(this,X)
+    subroutine FEMUpdateMeshSecondOrderMinimal(this,X)
         use ModInterfaces
-        class(ClassFEMSystemOfEquationsFluidMinimal) :: this
+        class(ClassFEMSystemOfEquationsFluidSecOrdMinimal) :: this
         real(8),dimension(:)::X
 
         ! Fluid do not update the mesh

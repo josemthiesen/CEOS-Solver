@@ -13,6 +13,7 @@
 module ModNewtonRaphsonFull
     use ModNonLinearSystemOfEquations
     use ModNonlinearSolver
+    
     implicit none
 
     type, extends(ClassNonlinearSolver) :: ClassNewtonRaphsonFull
@@ -61,8 +62,9 @@ module ModNewtonRaphsonFull
         subroutine NewtonRaphsonFull_Solve(this,SOE,Xguess,X, Phase)
 
             use ModGlobalSparseMatrix
-            use ModMathRoutines
-        
+            use ModMathRoutines            
+            use ModGMRES
+            
             class(ClassNewtonRaphsonFull)               :: this
             class(ClassNonLinearSystemOfEquations)      :: SOE
             real(8),dimension(:)                        :: Xguess , X

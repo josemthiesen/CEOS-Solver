@@ -33,7 +33,8 @@ module ModMultiscaleBoundaryConditionsFluid
         type (ClassLoadHistory), pointer, dimension(:,:)                 :: MacroscopicDefGrad
         type (ClassLoadHistory), pointer, dimension(:)                   :: MacroscopicPressure
         type (ClassLoadHistory), pointer, dimension(:)                   :: MacroscopicPresGrad
-
+        type (ClassLoadHistory), pointer, dimension(:,:)                 :: MacroscopicSecondGradPres
+                                                                            
     end type
     !-----------------------------------------------------------------------------------
 
@@ -49,16 +50,23 @@ module ModMultiscaleBoundaryConditionsFluid
     type, extends(ClassMultiscaleBoundaryConditionsFluid) :: ClassMultiscaleBCBiphasicFluidMinimal
 
         contains
-            procedure :: GetBoundaryConditions => GetBCMultiscaleFluidMinimal
+    
+        procedure :: GetBoundaryConditions => GetBCMultiscaleFluidMinimal
         end type
     !----------------------------------------------------------------------------------- 
           
+    !-----------------------------------------------------------------------------------
+    type, extends(ClassMultiscaleBoundaryConditionsFluid) :: ClassMultiscaleBCBiphasicFluidSecOrdMinimal
+
+        contains
+            procedure :: GetBoundaryConditions => GetBCMultiscaleFluidSecOrdMinimal
+        end type!-----------------------------------------------------------------------------------   
         
     contains
 
     !=================================================================================================
     subroutine GetBCMultiscaleFluidTaylorAndLinear( this, AnalysisSettings, GlobalNodesList, LC, ST, FluxExt, DeltaFluxExt, NodalPresDOF, P, DeltaPPresc, &
-                                                    PMacro , DeltaPMacro, GradPMacro , DeltaGradPMacro)
+                                                    PMacro , DeltaPMacro, GradPMacro , DeltaGradPMacro, GradGradPMacro, DeltaGradGradPMacro)
     
         !************************************************************************************
         ! DECLARATIONS OF VARIABLES
@@ -79,6 +87,7 @@ module ModMultiscaleBoundaryConditionsFluid
         real(8) , dimension(:)                               :: FluxExt , DeltaFluxExt
         real(8) , dimension(:)                               :: P, DeltaPPresc
         real(8) , dimension(:)                               :: GradPMacro , DeltaGradPMacro 
+        real(8) , dimension(:)                               :: GradGradPMacro, DeltaGradGradPMacro
         real(8)                                              :: PMacro , DeltaPMacro         
         integer , pointer , dimension(:)                     :: NodalPresDOF
      
@@ -95,6 +104,7 @@ module ModMultiscaleBoundaryConditionsFluid
         FluxExt      = 0.0d0    ! Values of External Flux - Not used in Multiscale Analysis
         DeltaFluxExt = 0.0d0    ! Values of Delta External Flux - Not used in Multiscale Analysis
         !************************************************************************************
+        
         
         !************************************************************************************
         ! Obtaining the Macroscopic deformation gradient P and GradP
@@ -116,13 +126,16 @@ module ModMultiscaleBoundaryConditionsFluid
         DeltaPMacro         = PMacroFinal - PMacroInitial
         GradPMacroInitial   = GradPMacroInitial
         GradPMacroFinal     = GradPMacroFinal - GradPMacroInitial
+        GradGradPMacro      = 0.0d0
+        DeltaGradGradPMacro = 0.0d0
+        
         !************************************************************************************
     end subroutine
     !=================================================================================================
     
      !=================================================================================================
     subroutine GetBCMultiscaleFluidMinimal( this, AnalysisSettings, GlobalNodesList, LC, ST, FluxExt, DeltaFluxExt, NodalPresDOF, P, DeltaPPresc, &
-                                            PMacro , DeltaPMacro, GradPMacro , DeltaGradPMacro)
+                                            PMacro , DeltaPMacro, GradPMacro , DeltaGradPMacro, GradGradPMacro, DeltaGradGradPMacro)
     
         !************************************************************************************
         ! DECLARATIONS OF VARIABLES
@@ -142,6 +155,7 @@ module ModMultiscaleBoundaryConditionsFluid
         ! -----------------------------------------------------------------------------------
         real(8) , dimension(:)                               :: FluxExt , DeltaFluxExt ! Not used in Multiscale Analysis
         real(8) , dimension(:)                               :: GradPMacro , DeltaGradPMacro
+        real(8) , dimension(:)                               :: GradGradPMacro, DeltaGradGradPMacro
         real(8)                                              :: PMacro , DeltaPMacro
         real(8) , dimension(:)                               :: P, DeltaPPresc
         integer , pointer , dimension(:)                     :: NodalPresDOF
@@ -157,6 +171,8 @@ module ModMultiscaleBoundaryConditionsFluid
         FluxExt      = 0.0d0    ! Values of External Flux - Not used in Multiscale Analysis
         DeltaFluxExt = 0.0d0    ! Values of Delta External Flux - Not used in Multiscale Analysis
         !************************************************************************************
+
+
         
         !************************************************************************************
         ! Obtaining the Macroscopic deformation gradient P and GradP
@@ -167,6 +183,9 @@ module ModMultiscaleBoundaryConditionsFluid
         DeltaPMacro         = PMacroFinal - PMacroInitial
         GradPMacro          = GradPMacroInitial
         DeltaGradPMacro     = GradPMacroFinal - GradPMacroInitial
+        GradGradPMacro      = 0.0d0
+        DeltaGradGradPMacro = 0.0d0
+        
         !************************************************************************************ 
         ! Calculating the prescribed pressure for the biphasic multiscale BC model
         ! (For Minimal Model there are no prescribed pressures
@@ -178,6 +197,73 @@ module ModMultiscaleBoundaryConditionsFluid
         !************************************************************************************
     end subroutine
     !=================================================================================================
+                                            
+ !=================================================================================================
+    subroutine GetBCMultiscaleFluidSecOrdMinimal( this, AnalysisSettings, GlobalNodesList, LC, ST, FluxExt, DeltaFluxExt, NodalPresDOF, P, DeltaPPresc, &
+                                            PMacro , DeltaPMacro, GradPMacro , DeltaGradPMacro, GradGradPMacro, DeltaGradGradPMacro)
+    
+        !************************************************************************************
+        ! DECLARATIONS OF VARIABLES
+        !************************************************************************************
+        ! Modules and implicit declarations
+        ! -----------------------------------------------------------------------------------
+        implicit none
+
+        ! Input variables
+        ! -----------------------------------------------------------------------------------
+        class(ClassMultiscaleBCBiphasicFluidSecOrdMinimal)   :: this
+        class(ClassAnalysis)                                 :: AnalysisSettings
+        type (ClassNodes),   pointer, dimension(:)           :: GlobalNodesList
+        integer                                              :: LC, ST
+
+        ! Output variables
+        ! -----------------------------------------------------------------------------------
+        real(8) , dimension(:)                               :: FluxExt , DeltaFluxExt ! Not used in Multiscale Analysis
+        real(8) , dimension(:)                               :: GradPMacro , DeltaGradPMacro
+        real(8) , dimension(:)                               :: GradGradPMacro, DeltaGradGradPMacro
+        real(8)                                              :: PMacro , DeltaPMacro
+        real(8) , dimension(:)                               :: P, DeltaPPresc
+        integer , pointer , dimension(:)                     :: NodalPresDOF
+        
+        ! Internal variables
+        ! -----------------------------------------------------------------------------------
+        integer                  :: i,j,k, nActive
+        real(8),  dimension(3)   :: GradPMacroInitial, GradPMacroFinal
+        real(8),  dimension(9)   :: GradGradPMacroInitial, GradGradPMacroFinal
+        real(8)                  :: PMacroInitial, PMacroFinal     
+        !************************************************************************************
+        !GetMacroscopicSecondGradientPressure
+        
+        !************************************************************************************
+        FluxExt      = 0.0d0    ! Values of External Flux - Not used in Multiscale Analysis
+        DeltaFluxExt = 0.0d0    ! Values of Delta External Flux - Not used in Multiscale Analysis
+        !************************************************************************************
+        
+        !************************************************************************************
+        ! Obtaining the Macroscopic deformation gradient P and GradP
+        call GetMacroscopicPressureAndPressureGradient( this%MacroscopicPressure, this%MacroscopicPresGrad, LC, ST, &
+                            PMacroInitial, PMacroFinal, GradPMacroInitial, GradPMacroFinal)
+        ! Obtaining the Macroscopic second gradient of P
+        call GetMacroscopicSecondGradientPressure( this%MacroscopicSecondGradPres, LC, ST, &
+                            GradGradPMacroInitial, GradGradPMacroFinal)
+        
+        PMacro              = PMacroInitial     
+        DeltaPMacro         = PMacroFinal - PMacroInitial
+        GradPMacro          = GradPMacroInitial
+        DeltaGradPMacro     = GradPMacroFinal - GradPMacroInitial
+        GradGradPMacro      = GradGradPMacroInitial
+        DeltaGradGradPMacro = GradGradPMacroFinal - GradGradPMacroInitial
+        
+        !************************************************************************************ 
+        ! Calculating the prescribed pressure for the biphasic multiscale BC model
+        ! (For Minimal Model there are no prescribed pressures
+
+        ! Allocating the NodalPresDOF  -> For Minimal multiscale model is Zero
+        if (associated(NodalPresDOF))          deallocate(NodalPresDOF)
+        nActive = size(this%NodalMultiscalePresBC) 
+        Allocate( NodalPresDOF(nActive))  
+        !************************************************************************************
+    end subroutine
     
     !=================================================================================================
     subroutine GetNodalMultiscalePresBCandDeltaP(AnalysisSettings, GlobalNodesList, PMacroInitial, PMacroFinal, GradPMacroInitial, GradPMacroFinal, &
@@ -285,6 +371,46 @@ module ModMultiscaleBoundaryConditionsFluid
             GradPMacroInitial(i) = MacroscopicPresGrad(i)%LoadCase(LC)%Step(ST)%InitVal
             GradPMacroFinal(i)   = MacroscopicPresGrad(i)%LoadCase(LC)%Step(ST)%FinalVal
         enddo
+        !************************************************************************************
+    end subroutine
+    !=================================================================================================
+
+        !=================================================================================================
+    subroutine GetMacroscopicSecondGradientPressure( MacroscopicSecondGradPres, LC, ST, &
+                            GradGradPMacroInitial, GradGradPMacroFinal)
+
+        !************************************************************************************
+        ! DECLARATIONS OF VARIABLES
+        !************************************************************************************
+        ! Modules and implicit declarations
+        ! -----------------------------------------------------------------------------------
+         implicit none
+
+        ! Input variables
+        ! -----------------------------------------------------------------------------------
+        type (ClassLoadHistory), pointer, dimension(:,:)   :: MacroscopicSecondGradPres
+        integer                                          :: LC, ST
+
+        ! Output variables
+        ! -----------------------------------------------------------------------------------
+        real(8) , dimension(:)                           :: GradGradPMacroInitial, GradGradPMacroFinal
+  
+        ! Internal variables
+        ! -----------------------------------------------------------------------------------
+        integer                                          :: i, j, k
+        
+        GradGradPMacroInitial   = 0.0d0
+        GradGradPMacroFinal     = 0.0d0
+        
+        k = 0
+        do i = 1,3
+            do j = 1,3
+                k=k+1
+                GradGradPMacroInitial(k) = MacroscopicSecondGradPres(i,j)%LoadCase(LC)%Step(ST)%InitVal
+                GradGradPMacroFinal(k)   = MacroscopicSecondGradPres(i,j)%LoadCase(LC)%Step(ST)%FinalVal
+            enddo
+        enddo
+        
         !************************************************************************************
     end subroutine
     !=================================================================================================

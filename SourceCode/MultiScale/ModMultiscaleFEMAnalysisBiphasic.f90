@@ -57,6 +57,9 @@ module ModMultiscaleFEMAnalysisBiphasic
                             case (MultiscaleModels%Minimal)
                                 this%MinimalDoF = 4
                                 call AllocateKgSparseMinimalUpperTriangularFluid(this) 
+                            case (MultiscaleModels%SecondOrderMinimal)
+                                this%MinimalDoF = 13
+                                call AllocateKgSparseMinimalUpperTriangularFluid(this) 
                             case default
                                 STOP 'Error: Multiscale Model of Fluid not found - ModMultiscaleFEMAnalysisBiphasic.f90'
                         end select
@@ -152,6 +155,7 @@ module ModMultiscaleFEMAnalysisBiphasic
             !************************************************************************************
         end subroutine
         !==========================================================================================
+
         
     
         !=================================================================================================
@@ -176,6 +180,8 @@ module ModMultiscaleFEMAnalysisBiphasic
             ! Setting the origin of the coordinate system at the centroid of the mesh
             !************************************************************************************     
             call TranslateCentroidToOrigin(this%ElementList, this%AnalysisSettings, this%GlobalNodesList )
+            
+            call DetermineMomentOfVolume_J(this%ElementList, this%AnalysisSettings, this%GlobalNodesList )
             
             ! Calling the solve FEM Analysis Biphasic
             !************************************************************************************  

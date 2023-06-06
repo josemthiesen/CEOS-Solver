@@ -612,6 +612,7 @@ module ModExportResultFile
         ! -----------------------------------------------------------------------------------
         if(FEA%AnalysisSettings%MultiscaleAnalysis) then
             call TranslateCentroidToOrigin(FEA%ElementList, FEA%AnalysisSettings, FEA%GlobalNodesList )
+            call DetermineMomentOfVolume_J(FEA%ElementList, FEA%AnalysisSettings, FEA%GlobalNodesList )
         endif
         
         ! Calculating the referential volume

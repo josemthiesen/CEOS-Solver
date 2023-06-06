@@ -118,6 +118,100 @@ module ModMultiscaleFEMAnalysis
             !************************************************************************************
         end subroutine
         !=================================================================================================
+        
+!=================================================================================================
+        subroutine DetermineMomentOfVolume_J(ElementList, AnalysisSettings, GlobalNodesList )
+            !************************************************************************************
+            ! DECLARATIONS OF VARIABLES
+            !************************************************************************************
+            ! Modules and implicit declarations
+            ! -----------------------------------------------------------------------------------
+            use ModStatus
+            implicit none
+
+            ! Object
+            ! -----------------------------------------------------------------------------------
+            type (ClassAnalysis)                                    :: AnalysisSettings
+            type (ClassElementsWrapper),     pointer, dimension(:)  :: ElementList
+            type (ClassNodes),               pointer, dimension(:)  :: GlobalNodesList
+
+            ! Input variables
+            ! -----------------------------------------------------------------------------------
+            type(ClassStatus)                          :: Status
+
+            ! Internal variables
+            ! -----------------------------------------------------------------------------------
+            integer							        :: NDOFel , gp , e, i, j, n, nNodes
+            real(8)							        :: detJ, TotalVolX 
+            real(8) , pointer , dimension(:)        :: Weight , Cauchy
+            real(8) , pointer , dimension(:,:)      :: NaturalCoord
+            real(8) , pointer , dimension(:,:)      :: B , G
+            real(8)                                 :: FactorAxi, Volume, VolumeX
+            real(8), allocatable, dimension(:)      :: Y
+            real(8), allocatable, dimension(:,:)    :: Moment_J, TotalMomentJ
+
+            !************************************************************************************
+
+            !************************************************************************************
+            ! CENTROID CORRECTION
+            !************************************************************************************
+            allocate ( Moment_J(AnalysisSettings%AnalysisDimension, AnalysisSettings%AnalysisDimension), &
+                TotalMomentJ(AnalysisSettings%AnalysisDimension, AnalysisSettings%AnalysisDimension), Y(AnalysisSettings%AnalysisDimension) )
+
+            TotalVolX = 0.0d0
+            !Loop over Elements
+            do e = 1,size(ElementList)
+                call ElementList(e)%El%ElementVolume(AnalysisSettings, Volume, VolumeX, Status)
+                TotalVolX = TotalVolX + VolumeX
+            enddo
+
+            AnalysisSettings%TotalVolX = TotalVolX      
+            Moment_J = 0.0d0
+            TotalMomentJ = 0.0d0
+            Y = 0.0d0
+
+            !Loop over Elements
+            do e = 1,size(ElementList)
+
+                ! Number of degrees of freedom
+                call ElementList(e)%El%GetElementNumberDOF(AnalysisSettings,NDOFel)
+
+                ! Allocating matrix B
+                B => B_Memory(  1:AnalysisSettings%BrowSize , 1:NDOFel )
+
+                ! Allocating matrix G
+                G => G_Memory(  1:AnalysisSettings%GrowSize , 1:NDOFel )
+
+                ! Retrieving gauss points parameters for numerical integration
+                call ElementList(e)%El%GetGaussPoints(NaturalCoord,Weight)
+
+                nNodes = ElementList(e)%El%GetNumberOfNodes()
+
+                !Loop over gauss points
+                do gp = 1, size(NaturalCoord,dim=1)
+
+                    !Get matrix B and the Jacobian determinant
+                    call ElementList(e)%El%Matrix_B_and_G(AnalysisSettings, NaturalCoord(gp,:) , B, G, detJ , FactorAxi)
+
+                    do i = 1,AnalysisSettings%AnalysisDimension
+                        call ElementList(e)%El%ElementInterpolation( [( ElementList(e)%El%ElementNodes(n)%Node%Coord(i),n=1,nNodes )], &
+                                                                            NaturalCoord(gp,:), Y(i) )
+                    enddo
+                    
+                    do i = 1,AnalysisSettings%AnalysisDimension
+                        do j = 1, AnalysisSettings%AnalysisDimension
+                            Moment_J(i,j) = Y(i)*Y(j)        
+                        end do
+                    end do
+                    
+                    ! Centroid
+                    TotalMomentJ = TotalMomentJ + Moment_J*Weight(gp)*detJ*FactorAxi/TotalVolX 
+                enddo
+            enddo
+            AnalysisSettings%Volume_Moment_J = TotalMomentJ
+            !************************************************************************************
+        end subroutine
+        !=================================================================================================
     
         !=================================================================================================
         subroutine  SolveMultiscaleAnalysis( this )

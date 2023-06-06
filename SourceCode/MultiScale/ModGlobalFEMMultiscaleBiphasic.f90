@@ -202,6 +202,93 @@ module ModGlobalFEMMultiscaleBiphasic
             !--------------------------------------------------------------------------------- 
         end subroutine
         
+        subroutine TangentStiffnessMatrixFluidSecOrdMinimal( AnalysisSettings , ElementList , nDOFFluid, Kg )
+
+            !************************************************************************************
+            ! DECLARATIONS OF VARIABLES
+            !************************************************************************************
+            ! Modules and implicit declarations
+            ! -----------------------------------------------------------------------------------
+            implicit none
+
+            ! Input variables
+            ! -----------------------------------------------------------------------------------
+            type(ClassAnalysis)                       , intent(inout) :: AnalysisSettings
+            type(ClassElementsWrapper) , dimension(:) , intent(in)    :: ElementList
+            type(ClassGlobalSparseMatrix)             , intent(in)    :: Kg
+            integer                                                   :: nDOFFluid
+    
+            ! Internal variables
+            ! -----------------------------------------------------------------------------------
+            integer :: i, e , nDOFelFluid
+            integer , pointer , dimension(:)   :: GMFluid
+            real(8) , pointer , dimension(:,:) :: Ke
+            real(8) , pointer , dimension(:,:) :: Kte
+            real(8) , pointer , dimension(:,:) :: Hfe, transHYJS_e, HYJS_e
+            real(8) , pointer , dimension(:)   :: Nfe
+            type(ClassTimer)                   :: Tempo
+            class(ClassElementBiphasic), pointer :: ElBiphasic
+ 
+            !************************************************************************************
+            ! GLOBAL FLUID TANGENT STIFFNESS MATRIX
+            !************************************************************************************
+            Kg%Val = 0.0d0
+    
+            ! Assemble Tangent Stiffness Matrix - Biphasic Multiscale Minimal
+            !---------------------------------------------------------------------------------
+            
+            !!$OMP PARALLEL DEFAULT(PRIVATE) SHARED(Kg, ElementList, AnalysisSettings, nDOFFluid)
+            !!$OMP DO
+            do  e = 1, size( ElementList )
+                ! Aponta o objeto ElBiphasic para o ElementList(e)%El mas com o type correto ClassElementBiphasic
+                call ConvertElementToElementBiphasic(ElementList(e)%el,  ElBiphasic) 
+        
+                call ElBiphasic%GetElementNumberDOF_fluid( AnalysisSettings , nDOFelFluid )
+
+                !Ke => KeF_Memory( 1:nDOFelFluid , 1:nDOFelFluid )
+                Hfe         => Hfe_Memory( 1:3 , 1:nDOFelFluid )
+                Nfe         => Nfe_Memory( 1:nDOFelFluid )
+                transHYJS_e => transHYJS_e_Memory(1:8, 1:9)
+                HYJS_e      => HYJS_e_Memory(1:9, 1:8)
+                Kte         => Kte_Memory( 1:(nDOFelFluid+13) , 1:(nDOFelFluid+13) )
+
+                GMFluid => GMFluid_Memory( 1:(nDOFelFluid+13) )
+
+                ! Fluid Global Mapping
+                call ElBiphasic%GetGlobalMapping_fluid( AnalysisSettings, GMFluid )
+               
+                GMFluid( nDOFelFluid+1: nDOFelFluid+13 ) = nDOFFluid + [1:13]
+                !do i=1,12
+                !    GMFluid( nDOFelFluid + i ) = nDOFFluid + i
+                !enddo
+
+                !Assembly Kte
+                call ElBiphasic%ElementStiffnessMatrix_Kpp( Ke, AnalysisSettings )
+                !call ElBiphasic%Matrix_Nfe_and_Hfe(AnalysisSettings, Nfe, Hfe)
+                call ElBiphasic%Matrix_Nfe_and_Hfe_and_transHYJSe(AnalysisSettings, Nfe, Hfe, transHYJS_e)
+                !call ElBiphasic%Matrix_Nfe_and_Hfe_and_HYJSe(AnalysisSettings, Nfe, Hfe, HYJS_e)
+                
+                Kte = AnalysisSettings%MultiscaleEpsilonParameter   !1.0d-14  ! Definir um valor muito pequeno invés de Zero
+                Kte( 1:nDOFelFluid , 1:nDOFelFluid ) = Ke
+                Kte( (nDOFelFluid+1):(nDOFelFluid+3),1:nDOFelFluid) = -Hfe
+                Kte( (nDOFelFluid+4),1:nDOFelFluid) = -Nfe(:)
+                Kte( 1:nDOFelFluid, (nDOFelFluid+1):(nDOFelFluid+3)) = -transpose(Hfe)
+                Kte( 1:nDOFelFluid, (nDOFelFluid+4)) = -Nfe(:)
+                Kte( (nDOFelFluid+5):(nDOFelFluid+13), 1:nDOFelFluid) = - transpose(transHYJS_e)
+                Kte( 1:nDOFelFluid, (nDOFelFluid+5):(nDOFelFluid+13)) = - transHYJS_e
+                
+                !!$OMP CRITICAL
+                !Assembly Kg
+                !call AssembleGlobalMatrix( GM, Ke, Kg )
+                call AssembleGlobalMatrixUpperTriangular( GMFluid, Kte, Kg )
+                !!$OMP END CRITICAL !RETOMAR PARALELISMO
+                
+            enddo
+            !!$OMP END DO
+            !!$OMP END PARALLEL
+            !--------------------------------------------------------------------------------- 
+        end subroutine
+        
         !##################################################################################################
         ! This routine calculates the global tangent stiffness matrix for multiscale minimal analysis for
         ! only the macroscopic pressure.
@@ -428,6 +515,73 @@ module ModGlobalFEMMultiscaleBiphasic
                 !$OMP CRITICAL
                 Fext(GMFluid) = Fext(GMFluid) + Fe
                 !$OMP END CRITICAL
+            
+            enddo
+            !$OMP END DO
+            !$OMP END PARALLEL
+
+            !************************************************************************************
+        end subroutine
+        !------------------------------------------------------------------------------------------------
+        
+        subroutine ExternalFluxMultiscaleSecOrdMinimal( ElementList, AnalysisSettings, Lambda_P, Lambda_GradP, Lambda_GradGradP, Fext )
+
+            !************************************************************************************
+            ! DECLARATIONS OF VARIABLES
+            !************************************************************************************
+            ! Modules and implicit declarations
+            ! -----------------------------------------------------------------------------------
+            implicit none
+
+            ! Input variables
+            ! -----------------------------------------------------------------------------------
+            type(ClassElementsWrapper) , dimension(:)  :: ElementList
+            type(ClassAnalysis)                        :: AnalysisSettings
+            real(8)                                    :: Lambda_P
+            real(8)                    , dimension(:)  :: Lambda_GradP
+            real(8)                    , dimension(:)  :: Lambda_GradGradP
+
+            ! Output variables
+            ! -----------------------------------------------------------------------------------
+            real(8) , dimension(:) :: Fext
+
+            ! Internal variables
+            ! -----------------------------------------------------------------------------------
+            integer :: e , nDOFel_fluid
+            integer , pointer , dimension(:) :: GMFluid
+            real(8) , pointer , dimension(:) :: Fe
+            real(8) , pointer , dimension(:,:) :: Hfe, transHYJS_e
+            real(8) , pointer , dimension(:) :: Nfe
+            class(ClassElementBiphasic), pointer :: ElBiphasic
+
+            !************************************************************************************
+
+            !************************************************************************************
+            ! ASSEMBLING THE EXTERNAL FLUX FOR MULTISCALE BIPHASIC MINIMAL 
+            !************************************************************************************
+            Fext=0.0d0
+            !$OMP PARALLEL DEFAULT(PRIVATE) SHARED(AnalysisSettings, ElementList, Lambda_P, Lambda_GradP, Lambda_GradGradP, Fext ) 
+            !$OMP DO
+            do  e = 1, size( ElementList )
+                call ConvertElementToElementBiphasic(ElementList(e)%el,  ElBiphasic) 
+                call ElBiphasic%GetElementNumberDOF_fluid(AnalysisSettings , nDOFel_fluid)
+            
+                Fe => Fe_Memory( 1:nDOFel_fluid )
+                Fe = 0.0d0
+                Nfe => Nfe_Memory( 1:nDOFel_fluid )
+                Hfe => Hfe_Memory( 1:3 , 1:NDOFel_fluid )
+                transHYJS_e => transHYJS_e_Memory(1:8, 1:9)
+                GMFluid => GMfluid_Memory( 1:nDOFel_fluid )
+            
+                call ElBiphasic%GetGlobalMapping_fluid(AnalysisSettings,GMFluid)
+            
+                call ElBiphasic%Matrix_Nfe_and_Hfe_and_transHYJSe(AnalysisSettings, Nfe, Hfe, transHYJS_e)
+            
+                Fe = Nfe*Lambda_P + matmul(transpose(Hfe),Lambda_GradP) + matmul(transHYJS_e, Lambda_GradGradP)
+            
+                !$OMP CRITICAL
+                Fext(GMFluid) = Fext(GMFluid) + Fe
+                !$OMP END CRITICAL !RETOMAR PARALELIZAÇÃO
             
             enddo
             !$OMP END DO

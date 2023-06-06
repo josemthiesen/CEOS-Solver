@@ -178,6 +178,7 @@ module ModExportSampleResultsFromMacroBiphasic
         FEA%AnalysisSettings%TotalVolX = TotalVolX
         
         call TranslateCentroidToOrigin(ElementListMaterial, FEA%AnalysisSettings, FEA%GlobalNodesList )
+        call DetermineMomentOfVolume_J(ElementListMaterial, FEA%AnalysisSettings, FEA%GlobalNodesList )
         !*****************************************************************************
         !=============================================================================
         
@@ -371,7 +372,7 @@ module ModExportSampleResultsFromMacroBiphasic
         character(len=255)                                      :: FileNameU = ''
         character(len=255)                                      :: FileNameF = ''
         character(len=255)                                      :: FileNameP = ''
-        character(len=255)                                      :: FileNameGP = ''
+        character(len=255)                                      :: FileNameGP = '', FileNameGGP = ''
         character(len=255)                                      :: FileNamewX = ''
         character(len=255)                                      :: FileNameJdivV = ''
         character(len=255)                                      :: FileNameStress = ''
@@ -383,7 +384,8 @@ module ModExportSampleResultsFromMacroBiphasic
         real(8), dimension(3)                                   :: HomogenizedwX
         real(8), dimension(1)                                   :: HomogenizedJdivV
         real(8), dimension(9)                                   :: HomogenizedTotalStress
-  
+        real(8), dimension(9)                                   :: HomogenizedPressureSecondGradient
+        
         !************************************************************************************
         ! COMPUTING THE HOMOGENIZATIONS
         !************************************************************************************
@@ -394,6 +396,7 @@ module ModExportSampleResultsFromMacroBiphasic
         call GetHomogenizedReferentialRelativeVelocitywXBiphasic( AnalysisSettings, ElementListMaterial, VSolid, HomogenizedwX)
         call GetHomogenizedJacobianSolidVelocityDivergent( AnalysisSettings, ElementListMaterial, VSolid, HomogenizedJdivV(1) )
         call GetHomogenizedTotalStressBiphasic( AnalysisSettings, ElementListMaterial, P, HomogenizedTotalStress )
+        call GetHomogenizedPressureSecondGradBiphasic( AnalysisSettings, ElementListMaterial, P, HomogenizedPressureSecondGradient ) 
         
         !************************************************************************************
         ! Writing the homogenizations
@@ -402,6 +405,7 @@ module ModExportSampleResultsFromMacroBiphasic
         FileNameF  = 'ElementMaterialMesh_HomogenizedF.dat'
         FileNameP  = 'ElementMaterialMesh_HomogenizedPressure.dat'
         FileNameGP = 'ElementMaterialMesh_HomogenizedGradientPressure.dat'
+        FileNameGGP= 'ElementMaterialMesh_HomogenizedSecondGradientPressure.dat'
         FileNamewX = 'ElementMaterialMesh_HomogenizedReferentilRelativeVelocity.dat'
         FileNameJdivV = 'ElementMaterialMesh_HomogenizedJacobianDivergentVelocity.dat'
         FileNameStress = 'ElementMaterialMesh_HomogenizedTotalPiolaStress.dat'
@@ -410,6 +414,7 @@ module ModExportSampleResultsFromMacroBiphasic
             call InitializeHomogenizationFile(FileNameF)
             call InitializeHomogenizationFile(FileNameP)
             call InitializeHomogenizationFile(FileNameGP)
+            call InitializeHomogenizationFile(FileNameGGP)
             call InitializeHomogenizationFile(FileNamewX)
             call InitializeHomogenizationFile(FileNameJdivV)
             call InitializeHomogenizationFile(FileNameStress)
@@ -419,6 +424,7 @@ module ModExportSampleResultsFromMacroBiphasic
         call HomogenizationWriteOnFile(FileNameF, Time , HomogenizedF_voigt)
         call HomogenizationWriteOnFile(FileNameP, Time , HomogenizedPressure)
         call HomogenizationWriteOnFile(FileNameGP, Time , HomogenizedPressureGradient)
+        call HomogenizationWriteOnFile(FileNameGGP, Time , HomogenizedPressureSecondGradient)
         call HomogenizationWriteOnFile(FileNamewX, Time , HomogenizedwX)
         call HomogenizationWriteOnFile(FileNameJdivV, Time , HomogenizedJdivV)
         call HomogenizationWriteOnFile(FileNameStress, Time , HomogenizedTotalStress)

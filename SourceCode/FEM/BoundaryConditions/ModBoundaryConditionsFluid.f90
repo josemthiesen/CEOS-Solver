@@ -203,7 +203,7 @@ module ModBoundaryConditionsFluid
     
     !=================================================================================================
     subroutine GetBoundaryConditions( this, AnalysisSettings, GlobalNodesList, LC, ST, FluxExt, DeltaFluxExt, NodalPresDOF, P, DeltaPPresc, &
-                                                    PMacro , DeltaPMacro, GradPMacro , DeltaGradPMacro)
+                                                    PMacro , DeltaPMacro, GradPMacro , DeltaGradPMacro, GradGradPMacro, DeltaGradGradPMacro)
 
         !************************************************************************************
         ! DECLARATIONS OF VARIABLES
@@ -222,8 +222,9 @@ module ModBoundaryConditionsFluid
         ! -----------------------------------------------------------------------------------
         real(8) , dimension(:)               :: FluxExt , DeltaFluxExt
         real(8) , dimension(:)               :: P, DeltaPPresc
-        real(8) , dimension(:)               :: GradPMacro , DeltaGradPMacro ! Used only in multiscale analysis
-        real(8)                              :: PMacro , DeltaPMacro         ! Used only in multiscale analysis
+        real(8) , dimension(:)               :: GradPMacro , DeltaGradPMacro        ! Used only in multiscale analysis
+        real(8) , dimension(:)               :: GradGradPMacro, DeltaGradGradPMacro ! Used only in multiscale analysis
+        real(8)                              :: PMacro , DeltaPMacro                ! Used only in multiscale analysis
         integer , pointer , dimension(:)     :: NodalPresDOF
         
         ! Internal variables
@@ -237,6 +238,8 @@ module ModBoundaryConditionsFluid
         DeltaPMacro         = 0.0d0
         GradPMacro          = 0.0d0
         DeltaGradPMacro     = 0.0d0
+        GradGradPMacro      = 0.0d0
+        DeltaGradGradPMacro = 0.0d0
         !************************************************************************************
         allocate( MappingNodesSolidFluid(size(GlobalNodesList)) )
         

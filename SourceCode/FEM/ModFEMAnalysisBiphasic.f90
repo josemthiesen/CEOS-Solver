@@ -421,6 +421,7 @@ module ModFEMAnalysisBiphasic
             
             real(8) , dimension(3)   :: GradPMacro , DeltaGradPMacro ! Used only in multiscale analysis
             real(8)                  :: PMacro , DeltaPMacro         ! Used only in multiscale analysis
+            real(8) , dimension(9)   :: GradGradPMacro , DeltaGradGradPMacro     ! Used only in multiscale analysis
             real(8) , dimension(3)   :: UMacro , DeltaUMacro         ! Used only in multiscale analysis
             real(8) , dimension(9)   :: FMacro , DeltaFMacro             ! Used only in multiscale analysis
             
@@ -513,7 +514,7 @@ module ModFEMAnalysisBiphasic
                     call BCSolid%GetBoundaryConditions(AnalysisSettings, GlobalNodesList,  LC, ST, Fext_solid_alpha0, DeltaFext_solid,FEMSoE%DispDOF, &
                                                     X(1:nDOFSolid), DeltaUPresc, FMacro , DeltaFMacro, UMacro , DeltaUMacro )
                     call BCFluid%GetBoundaryConditions(AnalysisSettings, GlobalNodesList,  LC, ST, Fext_fluid_alpha0, DeltaFext_fluid,FEMSoE%PresDOF, &
-                                                    X((nDOFSolid+1):nDOF), DeltaPPresc, PMacro , DeltaPMacro, GradPMacro , DeltaGradPMacro)
+                                                    X((nDOFSolid+1):nDOF), DeltaPPresc, PMacro , DeltaPMacro, GradPMacro , DeltaGradPMacro, GradGradPMacro, DeltaGradGradPMacro)
                     
                     ! Shift on fluid prescribed degrees of freedom - PresDOF - (Monolithic)
                     FEMSoE%PresDOF = FEMSoE%PresDOF + nDOFSolid
@@ -740,6 +741,7 @@ module ModFEMAnalysisBiphasic
             
             real(8) , dimension(3)   :: GradPMacro , DeltaGradPMacro ! Used only in multiscale analysis
             real(8)                  :: PMacro , DeltaPMacro         ! Used only in multiscale analysis
+            real(8) , dimension(9)   :: GradGradPMacro , DeltaGradGradPMacro     ! Used only in multiscale analysis
             real(8) , dimension(3)   :: UMacro , DeltaUMacro         ! Used only in multiscale analysis
             real(8) , dimension(9)   :: FMacro , DeltaFMacro         ! Used only in multiscale analysis
             
@@ -927,7 +929,7 @@ module ModFEMAnalysisBiphasic
                                                        U, DeltaUPresc, FMacro , DeltaFMacro, UMacro , DeltaUMacro )
                     
                     call BCFluid%GetBoundaryConditions(AnalysisSettings, GlobalNodesList,  LC, ST, FluxExt_alpha0, DeltaFluxExt,FEMSoEFluid%PresDOF, P, DeltaPPresc, &
-                                                        PMacro , DeltaPMacro, GradPMacro , DeltaGradPMacro )
+                                                        PMacro , DeltaPMacro, GradPMacro , DeltaGradPMacro, GradGradPMacro, DeltaGradGradPMacro )
                     
                     write(*,*)''
                     !-----------------------------------------------------------------------------------
@@ -1219,7 +1221,8 @@ module ModFEMAnalysisBiphasic
             use ModFEMSystemOfEquationsFluidMinimal
             use ModFEMSystemOfEquationsSolidPeriodic
             use ModFEMSystemOfEquationsFluidLinearMinimalP
-                
+            use ModFEMSystemOfEquationsFluidSecOrdMinimal   
+            
             implicit none
 
             ! Input variables
@@ -1265,7 +1268,8 @@ module ModFEMAnalysisBiphasic
             integer :: Phase ! Indicates the material phase (1 = Solid; 2 = Fluid)
             
             real(8) , dimension(3)   :: GradPMacro , DeltaGradPMacro     ! Used only in multiscale analysis
-            real(8)                  :: PMacro     , DeltaPMacro         ! Used only in multiscale analysis
+            real(8) , dimension(9)   :: GradGradPMacro , DeltaGradGradPMacro     ! Used only in multiscale analysis
+            real(8)                  :: PMacro , DeltaPMacro         ! Used only in multiscale analysis
             real(8) , dimension(3)   :: UMacro , DeltaUMacro             ! Used only in multiscale analysis
             real(8) , dimension(9)   :: FMacro , DeltaFMacro             ! Used only in multiscale analysis
             
@@ -1326,7 +1330,14 @@ module ModFEMAnalysisBiphasic
                     endselect
                 elseif(MultiscaleModelFluid == MultiscaleModels%Linear .or. &
                        MultiscaleModelFluid == MultiscaleModels%Taylor) then
-                    allocate( ClassFEMSystemOfEquationsFluid :: FEMSoEFluid)    
+                    allocate( ClassFEMSystemOfEquationsFluid :: FEMSoEFluid)
+                elseif(MultiscaleModelFluid == MultiscaleModels%SecondOrderMinimal) then
+                    allocate( ClassFEMSystemOfEquationsFluidSecOrdMinimal :: FEMSoEFluid)
+                    select type(FEMSoEFluid)
+                        class is(ClassFEMSystemOfEquationsFluidSecOrdMinimal)
+                            AdditionalMinimalDoFFluid = size(FEMSoEFluid%PMacro_current) + size(FEMSoEFluid%GradPMacro_current) &
+                                + size(FEMSoEFluid%GradGradPMacro_current)
+                        endselect       
                 else
                     stop 'Error: Fluid Multiscale model not defined. QuasiStaticAnalysis_Biphasic_FluidSolid'      
                 endif 
@@ -1483,7 +1494,7 @@ module ModFEMAnalysisBiphasic
                                                            U, DeltaUPresc, FMacro , DeltaFMacro, UMacro , DeltaUMacro )
 
                     call BCFluid%GetBoundaryConditions(AnalysisSettings, GlobalNodesList,  LC, ST, FluxExt_alpha0, DeltaFluxExt,FEMSoEFluid%PresDOF, P, DeltaPPresc, &
-                                                            PMacro , DeltaPMacro, GradPMacro , DeltaGradPMacro)
+                                                            PMacro , DeltaPMacro, GradPMacro , DeltaGradPMacro, GradGradPMacro, DeltaGradGradPMacro)
                     
                     !-----------------------------------------------------------------------------------
                     ! Mapeando os graus de liberdade da matrix esparsa para a aplicação das CC de Dirichlet
@@ -1606,7 +1617,7 @@ module ModFEMAnalysisBiphasic
                         FEMSoEFluid % U = U(1:nDOFSolid)
                         FEMSoEFluid % PMacro_current     = PMacro + alpha*DeltaPMacro
                         FEMSoEFluid % GradPMacro_current = GradPMacro + alpha*DeltaGradPMacro
-                    
+                        FEMSoEFluid % GradGradPMacro_current = GradGradPMacro + alpha*DeltaGradGradPMacro
                         
                         write(*,'(12x,a)') 'Solve the Fluid system of equations '
                         call NLSolver%Solve( FEMSoEFluid , XGuess = Pstaggered , X = P, Phase = 2 )
@@ -1741,6 +1752,12 @@ module ModFEMAnalysisBiphasic
                     if (MultiscaleModelFluid == MultiscaleModels%Minimal) then
                         write(FileID_Lambdas_fluid,*) 'LambdaGradP :', P(nDOFFluid+1:nDOFFluid+3)
                         write(FileID_Lambdas_fluid,*) 'LambdaP:'     , P(nDOFFluid+4)
+                    endif
+                    
+                    if (MultiscaleModelFluid == MultiscaleModels%SecondOrderMinimal) then
+                        write(FileID_Lambdas_fluid,*) 'LambdaP:'     , P(nDOFFluid+4)
+                        write(FileID_Lambdas_fluid,*) 'LambdaGradP :', P(nDOFFluid+1:nDOFFluid+3)
+                        write(FileID_Lambdas_fluid,*) 'LambdaGradGradP :', P(nDOFFluid+5:nDOFFluid+13)
                     endif
                   
                     if (MultiscaleModel == MultiscaleModels%Minimal) then

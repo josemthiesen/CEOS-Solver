@@ -36,7 +36,7 @@ module ModReadInputFile
 
     integer,parameter :: iAnalysisSettings=1, iLinearSolver=2, iNonLinearSolver=3,iLineSearchAlgorithm=4, iStaggeredSplittingScheme=5, iMaterial=6, &
                          iPermeability=7, iMeshAndBC=8, iMacroscopicDispAndDeformationGradient=9, iMacroscopicPressureAndGradient=10, &
-                         nblocks=10
+                         iMacroscopicPressureSecondGradient=11, nblocks=11
     logical,dimension(nblocks)::BlockFound=.false.
     character(len=100),dimension(nblocks)::BlockName
 
@@ -75,6 +75,7 @@ module ModReadInputFile
             BlockName(8)="Mesh and Boundary Conditions"
             BlockName(9)="Macroscopic Displacement And Deformation Gradient"
             BlockName(10)="Macroscopic Pressure And Gradient"
+            BlockName(11)="Macroscopic Pressure Second Gradient"
 
             BlockFound=.false.
 
@@ -149,6 +150,10 @@ module ModReadInputFile
                     case (iMacroscopicPressureAndGradient)
                         if (.not.all(BlockFound([iMeshAndBC]))) call DataFile%RaiseError("Mesh must be specified before Multiscale Settings.")
                         call ReadMacroscopicPressureAndGradientPressureBiphasic(AnalysisSettings,DataFile,TimeFileName,BCFluid,GlobalNodesList)
+        !--------------------------------------------------------------------------------------------------------------------------------------------------------
+                    case (iMacroscopicPressureSecondGradient)
+                        if (.not.all(BlockFound([iMeshAndBC]))) call DataFile%RaiseError("Mesh must be specified before Multiscale Settings.")
+                        call ReadMacroscopicPressureSecondGradientBiphasic(AnalysisSettings,DataFile,TimeFileName,BCFluid,GlobalNodesList)
                        
         !---------------------------------------------------------------------------------------------------------------------------------------------------------                     
                     case default
@@ -338,7 +343,9 @@ module ModReadInputFile
             elseif (DataFile%CompareStrings(ListOfValues(9),"LinearMinimalP")) then
                 AnalysisSettings%MultiscaleModelFluid = MultiscaleModels%LinearMinimalP
             elseif (DataFile%CompareStrings(ListOfValues(9),"Minimal")) then
-                AnalysisSettings%MultiscaleModelFluid = MultiscaleModels%Minimal        
+                AnalysisSettings%MultiscaleModelFluid = MultiscaleModels%Minimal
+            elseif (DataFile%CompareStrings(ListOfValues(9),"SecondOrderMinimal")) then
+                AnalysisSettings%MultiscaleModelFluid = MultiscaleModels%SecondOrderMinimal   
             else
                 call Error( "Multiscale Model for Fluid not identified" )
             endif
@@ -511,6 +518,8 @@ module ModReadInputFile
                         allocate(ClassMultiscaleBCBiphasicFluidTaylorAndLinear :: BCFluid)
                     elseif (AnalysisSettings%MultiscaleModelFluid == MultiscaleModels%Minimal) then
                         allocate(ClassMultiscaleBCBiphasicFluidMinimal :: BCFluid)
+                    elseif (AnalysisSettings%MultiscaleModelFluid == MultiscaleModels%SecondOrderMinimal) then
+                        allocate(ClassMultiscaleBCBiphasicFluidSecOrdMinimal :: BCFluid)
                     else
                         call Error( "Multiscale Fluid Kinematical Constraint not identified" )
                     endif
@@ -834,6 +843,8 @@ module ModReadInputFile
                             BCFluid%TypeOfBCFluid = MultiscaleBCType%Linear
                         elseif (AnalysisSettings%MultiscaleModelFluid == MultiscaleModels%Minimal) then
                             BCFluid%TypeOfBCFluid = MultiscaleBCType%Minimal
+                        elseif (AnalysisSettings%MultiscaleModelFluid == MultiscaleModels%SecondOrderMinimal) then
+                            BCFluid%TypeOfBCFluid = MultiscaleBCType%SecondOrderMinimal
                         endif
 
                         ! Reading the values of macroscopic pressure and macroscopic pressure gradient
@@ -854,6 +865,70 @@ module ModReadInputFile
             call DataFile%GetNextString(string)
             if (.not.DataFile%CompareStrings(string,'end'//trim(BlockName(iMacroscopicPressureAndGradient)))) then
                 call DataFile%RaiseError("End of block was expected. BlockName="//trim(BlockName(iMacroscopicPressureAndGradient)))
+            endif
+
+
+        end subroutine
+        !=======================================================================================================================
+        
+        !=======================================================================================================================
+        subroutine ReadMacroscopicPressureSecondGradientBiphasic(AnalysisSettings,DataFile,TimeFileName,BCFluid,GlobalNodesList)
+
+            implicit none
+
+            type (ClassParser)                              :: DataFile
+            type (ClassAnalysis)                            :: AnalysisSettings
+            type (ClassNodes) , pointer , dimension(:)      :: GlobalNodesList
+            class (ClassBoundaryConditionsFluid), pointer   :: BCFluid
+            character(len=100)                              :: TimeFileName
+
+            character(len=255)::string
+
+            character(len=100),dimension(9)::ListOfOptions,ListOfValues
+            logical,dimension(9)::FoundOption
+            integer ::  i, j, k, nDOFFluid, nNosFluid, node, cont
+
+            ListOfOptions=["GradGradP11", "GradGradP12","GradGradP13","GradGradP21","GradGradP22","GradGradP23","GradGradP31","GradGradP32","GradGradP33"]
+
+            call DataFile%FillListOfOptions(ListOfOptions,ListOfValues,FoundOption)
+
+            call DataFile%CheckError
+
+            do i=1,size(FoundOption)
+                if (.not.FoundOption(i)) then
+                    write(*,*) "Macroscopic Pressure Second Gradient :: Option not found ["//trim(ListOfOptions(i))//"]"
+                    stop
+                endif
+            enddo
+
+            if (AnalysisSettings%ProblemType .eq. ProblemTypes%Biphasic) then
+                if (AnalysisSettings%MultiscaleAnalysis) then
+
+                    select type ( BCFluid )
+                
+                    !class is ( ClassMultiscaleBoundaryConditions )
+                        ! Nothing to do
+                
+                    class is ( ClassMultiscaleBoundaryConditionsFluid )
+
+                        ! Reading the values of macroscopic pressure and macroscopic pressure gradient
+                        call ReadMacroscopicPressureSecondGradientComponents(BCFluid%MacroscopicSecondGradPres, DataFile, TimeFileName, ListofValues)
+                        ! Defining the nodal displacement constraint for each multiscale BC model.
+                        ! Global nodes or only Boundary nodes
+                        call DefineNodalMultiscalePresBC(AnalysisSettings, BCFluid%TypeOfBCFluid, BCFluid%BoundaryNodesFluid, BCFluid%NodalMultiscalePresBC , &
+                                                         GlobalNodesList)
+                                      
+                    class default
+                        stop "Error: ReadMultiscaleMacroscopicPressureAndGradiente - Multiscale BC not implemented"
+                    end select
+
+                endif
+            endif
+                
+            BlockFound(iMacroscopicPressureSecondGradient)=.true.
+            call DataFile%GetNextString(string)
+            if (.not.DataFile%CompareStrings(string,'end'//trim(BlockName(iMacroscopicPressureSecondGradient)))) then
+                call DataFile%RaiseError("End of block was expected. BlockName="//trim(BlockName(iMacroscopicPressureSecondGradient)))
             endif
 
 
@@ -902,6 +977,38 @@ module ModReadInputFile
         !=======================================================================================================================
       
         !=======================================================================================================================
+        subroutine ReadMacroscopicPressureSecondGradientComponents(MacroscopicSecondGradPres, DataFile, TimeFileName, ListofValues)
+                
+            implicit none
+
+            type (ClassLoadHistory), pointer, dimension(:,:)                 :: MacroscopicSecondGradPres
+            character(len=100)                                               :: TimeFileName
+            character(len=100),dimension(9)                                  :: ListOfValues
+            type(ClassParser)                                                :: DataFile 
+            integer :: i, j, k, cont
+      
+       
+            allocate(MacroscopicSecondGradPres(3,3))
+        
+            ! Reading the macroscopic pressure second gradient components
+            k=0
+            do i = 1,3
+                do j=1,3
+                    call MacroscopicSecondGradPres(i,j)%ReadTimeDiscretization(TimeFileName)
+                        if (DataFile%CompareStrings(ListOfValues(k+1),"Zero")) then
+                            call MacroscopicSecondGradPres(i,j)%CreateConstantLoadHistory(0.0d0)
+                        elseif (DataFile%CompareStrings(ListOfValues(k+1),"One")) then
+                            call MacroscopicSecondGradPres(i,j)%CreateConstantLoadHistory(1.0d0)
+                        else
+                            call MacroscopicSecondGradPres(i,j)%ReadValueDiscretization(ListOfValues(k+1))
+                        endif
+                        k=k+1
+                enddo  
+            enddo
+                     
+        end subroutine
+        
+        !=======================================================================================================================
         subroutine DefineNodalMultiscalePresBC(AnalysisSettings, TypeOfBCFluid, BoundaryNodesFluid, NodalMultiscalePresBC , GlobalNodesList)
                 
             implicit none
@@ -929,6 +1036,9 @@ module ModReadInputFile
                 enddo
             ! Creating the Linear Fluid Multiscale BC
             elseif (TypeOfBCFluid == MultiscaleBCType%Minimal) then
+                ! Nothing to do
+            
+            elseif (TypeOfBCFluid == MultiscaleBCType%SecondOrderMinimal) then
                 ! Nothing to do
             
             ! Creating the Linear Fluid Multiscale BC
@@ -1007,9 +1117,9 @@ module ModReadInputFile
             else
                 LinearSolver%MatrixTypePARDISO_parameter = -2
                 LinearSolver%iparm_to_mtype(10) = 0
-                LinearSolver%iparm_to_mtype(11) = 0
-                LinearSolver%iparm_to_mtype(13) = 0
-                LinearSolver%iparm_to_mtype(24) = 1
+                LinearSolver%iparm_to_mtype(11) = 0 ! 0
+                LinearSolver%iparm_to_mtype(13) = 0 ! 0
+                LinearSolver%iparm_to_mtype(24) = 1 ! 1
             end if
         
 

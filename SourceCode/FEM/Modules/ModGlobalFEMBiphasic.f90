@@ -218,7 +218,7 @@ module ModGlobalFEMBiphasic
                 !$OMP END CRITICAL
             enddo
             !$OMP END DO
-            !$OMP END PARALLEL
+            !$OMP END PARALLEL ! RETOMAR PARALELISMO
 
         end subroutine
         !------------------------------------------------------------------------------------

@@ -41,6 +41,7 @@ module ModFEMSystemOfEquationsFluid
         
         real(8),dimension(1)                                   :: PMacro_current
         real(8),dimension(3)                                   :: GradPMacro_current
+        real(8),dimension(9)                                   :: GradGradPMacro_current
 
 
     contains

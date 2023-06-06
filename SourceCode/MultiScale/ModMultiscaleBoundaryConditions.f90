@@ -21,7 +21,7 @@ module ModMultiscaleBoundaryConditions
 
     !-----------------------------------------------------------------------------------
     type ClassMultiscaleBCType
-        integer :: Taylor=1, Linear=2, Periodic=3, Minimal=4, MinimalLinearD1 = 5,  MinimalLinearD3 = 6, LinearMinimalP = 7
+        integer :: Taylor=1, Linear=2, Periodic=3, Minimal=4, MinimalLinearD1 = 5,  MinimalLinearD3 = 6, LinearMinimalP = 7, SecondOrderMinimal = 8
     end type
     !-----------------------------------------------------------------------------------
     
@@ -86,7 +86,14 @@ module ModMultiscaleBoundaryConditions
             procedure :: GetBoundaryConditions   => GetBoundaryConditionsMultiscaleMinimalLinearD3
     end type
     !---------------------------------------------------------------------------------        
+    
+    !-----------------------------------------------------------------------------------
+    type, extends(ClassMultiscaleBoundaryConditions) :: ClassMultiscaleBoundaryConditionsSecOrdMinimal
 
+        contains
+            !procedure :: GetBoundaryConditions   => GetBoundaryConditionsMultiscaleSecOrdMinimal
+    end type
+        
     contains
 
     !=================================================================================================

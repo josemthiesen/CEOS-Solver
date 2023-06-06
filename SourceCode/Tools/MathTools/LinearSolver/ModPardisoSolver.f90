@@ -350,7 +350,7 @@ module ModPardisoSolver
             ! Object
             ! -----------------------------------------------------------------------------------
             class(ClassPardisoSolver) :: this
-
+            
             ! Input variables
             ! -----------------------------------------------------------------------------------
             real(8) , dimension(:) ::  b
@@ -365,7 +365,7 @@ module ModPardisoSolver
  		    !************************************************************************************
             ! SOLVING THE LINEAR SYSTEM AND RELEASE MEMORY
 		    !************************************************************************************
-
+            
             call this%Constructor ( size(x) )
 
             call CallPardiso( this, PhaseAll, A%val, A%RowMap, A%Col, b, x )
