@@ -274,7 +274,7 @@ module ModGlobalFEMMultiscaleBiphasic
                 Kte( (nDOFelFluid+4),1:nDOFelFluid) = -Nfe(:)
                 Kte( 1:nDOFelFluid, (nDOFelFluid+1):(nDOFelFluid+3)) = -transpose(Hfe)
                 Kte( 1:nDOFelFluid, (nDOFelFluid+4)) = -Nfe(:)
-                Kte( (nDOFelFluid+5):(nDOFelFluid+13), 1:nDOFelFluid) = - transpose(transHYJS_e)
+                Kte( (nDOFelFluid+5):(nDOFelFluid+13), 1:nDOFelFluid) =  -transpose(transHYJS_e)
                 Kte( 1:nDOFelFluid, (nDOFelFluid+5):(nDOFelFluid+13)) = - transHYJS_e
                 
                 !!$OMP CRITICAL
@@ -560,8 +560,8 @@ module ModGlobalFEMMultiscaleBiphasic
             ! ASSEMBLING THE EXTERNAL FLUX FOR MULTISCALE BIPHASIC MINIMAL 
             !************************************************************************************
             Fext=0.0d0
-            !$OMP PARALLEL DEFAULT(PRIVATE) SHARED(AnalysisSettings, ElementList, Lambda_P, Lambda_GradP, Lambda_GradGradP, Fext ) 
-            !$OMP DO
+            !!$OMP PARALLEL DEFAULT(PRIVATE) SHARED(AnalysisSettings, ElementList, Lambda_P, Lambda_GradP, Lambda_GradGradP, Fext ) 
+            !!$OMP DO
             do  e = 1, size( ElementList )
                 call ConvertElementToElementBiphasic(ElementList(e)%el,  ElBiphasic) 
                 call ElBiphasic%GetElementNumberDOF_fluid(AnalysisSettings , nDOFel_fluid)
@@ -579,13 +579,13 @@ module ModGlobalFEMMultiscaleBiphasic
             
                 Fe = Nfe*Lambda_P + matmul(transpose(Hfe),Lambda_GradP) + matmul(transHYJS_e, Lambda_GradGradP)
             
-                !$OMP CRITICAL
+                !!$OMP CRITICAL
                 Fext(GMFluid) = Fext(GMFluid) + Fe
-                !$OMP END CRITICAL !RETOMAR PARALELIZAÇÃO
+                !!$OMP END CRITICAL !RETOMAR PARALELIZAÇÃO
             
             enddo
-            !$OMP END DO
-            !$OMP END PARALLEL
+            !!$OMP END DO
+            !!$OMP END PARALLEL
 
             !************************************************************************************
         end subroutine

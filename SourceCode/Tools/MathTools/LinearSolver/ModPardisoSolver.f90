@@ -186,7 +186,7 @@ module ModPardisoSolver
             iparm(2) = 3  !(2 is the default) !3
 
             ! INPUT - Preconditioned CGS/CG. The default isiparm(4)=0.
-            iparm(4) = 0!0!0
+            iparm(4) = 1 !0!0!0 teste
 
             ! INPUT - iparm(5) = 0: User permutation in theperm array is ignored
             iparm(5) = 0
@@ -202,16 +202,16 @@ module ModPardisoSolver
 
             ! INPUT - Pivoting perturbation. The default value for nonsymmetric matrices
             ! (mtype =11,mtype=13), eps = 10-13.
-            iparm(10) = iparm_to_mtype(10) ! 13 -> unsymmetric, 8 -> symmetric indefinite, 0 --> already using
+            iparm(10) = 8 !iparm_to_mtype(10) ! 13 -> unsymmetric, 8 -> symmetric indefinite, 0 --> already using
 
             ! INPUT - Scaling vectors.
-            iparm(11) = iparm_to_mtype(11) ! 1 -> unsymmetric, 0 -> symmetric indefinite, 0 --> already using
+            iparm(11) = 1 !iparm_to_mtype(11) ! 1 -> unsymmetric, 0 -> symmetric indefinite, 0 --> already using
 
             ! INPUT - Default: Solve a linear system AX = B.
             iparm(12) = 0
 
             ! INPUT -Improved accuracy using (non-) symmetric weighted matching.
-             iparm(13) = iparm_to_mtype(13) ! 1-> unsymmetric, 0-> already using
+             iparm(13) = 1 !1 !iparm_to_mtype(13) ! 1-> unsymmetric, 0-> already using
 
             ! INPUT/OUTPUT -  Report the number of non-zero elements in the factors.
             ! Enable reporting if iparm(18) < 0. Disable reporting if iparm(18) >= 0.
@@ -222,7 +222,7 @@ module ModPardisoSolver
             iparm(19) = 0
 
             ! INPUT - Pivoting for symmetric indefinite matrices.
-            iparm(21) = 0
+            iparm(21) = 1 !0 teste
 
             ! INPUT - Parallel factorization control.
             ! iparm(24) = 0: Intel MKL PARDISO uses the classic algorithm for factorization. 
@@ -247,7 +247,7 @@ module ModPardisoSolver
             iparm(31) = 0
 
             ! INPUT - Optimal number of threads for conditional numerical reproducibility (CNR) mode.
-            iparm(34) = 0
+            iparm(34) = 0 !0 teste
 
             ! INPUT - One- or zero-based indexing of columns and rows.
             ! One-based indexing: columns and rows indexing in arraysia,ja, andperm starts
@@ -276,15 +276,15 @@ module ModPardisoSolver
 
             ! OUTPUT - iparm(22) = 0: Inertia: number of positive eigenvalues. Intel MKL PARDISO
             ! reports the number of positive eigenvalues for symmetric indefinite matrices.
-
+            iparm(22) = 0
             ! OUTPUT - iparm(23) = 0: Inertia: number of negative eigenvalues. Intel MKL PARDISO
             ! reports the number of positive eigenvalues for symmetric indefinite matrices.
-
+            iparm(23) = 0
             ! OUTPUT - iparm(30) = 0: Number of zero or negative pivots.
 
             ! OUTPUT - iparm(30) = 0:  Size of the minimum OOC memory for numerical factorization
             ! and solution.
-
+                        
             ! iparm(3)      = 0: Reserved. Set to zero.
             ! iparm(9)      = 0: Reserved. Set to zero.
             ! iparm(26)     = 0: Reserved. Set to zero.

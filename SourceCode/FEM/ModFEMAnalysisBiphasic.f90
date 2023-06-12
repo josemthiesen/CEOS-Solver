@@ -148,7 +148,8 @@ module ModFEMAnalysisBiphasic
             enddo
 
             !Converting the sparse matrix to coordinate format (used by Pardiso Sparse Solver)
-             call ConvertToCoordinateFormatUpperTriangular( KgSparseFluid , this%KgFluid%Row , this%KgFluid%Col , this%KgFluid%Val , this%KgFluid%RowMap) ! this%KgFluid -> Matriz de rigidez do Fluid
+            call ConvertToCoordinateFormatUpperTriangular( KgSparseFluid , this%KgFluid%Row , this%KgFluid%Col , this%KgFluid%Val , this%KgFluid%RowMap) ! this%KgFluid -> Matriz de rigidez do Fluid
+            !call ConvertToCoordinateFormat( KgSparseFluid , this%KgFluid%Row , this%KgFluid%Col , this%KgFluid%Val , this%KgFluid%RowMap) ! this%KgFluid -> Matriz de rigidez do Fluid
 
             !Releasing memory
             call SparseMatrixKill(KgSparseFluid)

@@ -1,3 +1,7 @@
+module ModGMRES
+    
+    contains
+    
 subroutine atx_cr ( n, nz_num, ia, ja, a, x, w )
 
 !*****************************************************************************80
@@ -1124,7 +1128,7 @@ subroutine pmgmres_ilu_cr ( n, nz_num, ia, ja, a, x, rhs, itr_max, mr, &
   real ( kind = rk ) tol_rel
   integer ua(n)
   real ( kind = rk ) v(n,mr+1);
-  logical, parameter :: verbose = .true.
+  logical, parameter :: verbose = .false.
   real ( kind = rk ) x(n)
   real ( kind = rk ) y(mr+1)
 
@@ -1449,3 +1453,5 @@ subroutine timestamp ( )
 
   return
 end
+
+end module

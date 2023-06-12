@@ -143,7 +143,8 @@
 		<Filter Name="MathTools">
 		<Filter Name="LinearSolver">
 		<File RelativePath="..\..\SourceCode\Tools\MathTools\LinearSolver\ModFullLinearSolver.f90"/>
-		<File RelativePath=".\ModGMRES.f90"/>
+		<File RelativePath="..\..\SourceCode\Tools\MathTools\LinearSolver\ModGMRES.f90"/>
+		<File RelativePath="..\..\SourceCode\Tools\MathTools\LinearSolver\ModKrylovSolver.f90"/>
 		<File RelativePath="..\..\SourceCode\Tools\MathTools\LinearSolver\ModLinearSolver.f90"/>
 		<File RelativePath="..\..\SourceCode\Tools\MathTools\LinearSolver\ModLinearSolverLibrary.f90"/>
 		<File RelativePath="..\..\SourceCode\Tools\MathTools\LinearSolver\ModPardisoSolver.f90"/></Filter>

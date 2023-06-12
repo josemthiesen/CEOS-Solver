@@ -14,11 +14,13 @@ module ModLinearSolverLibrary
 
     use ModLinearSolver
 	use ModPardisoSolver
-	use ModLinearSolverLU
+	use ModKrylovSolver
+    use ModLinearSolverLU
 
     type ClassLinearSolvers
         integer :: LU = 1
         integer :: Pardiso = 2
+        integer :: GMRES = 3
     end type
 
     type(ClassLinearSolvers),parameter :: LinearSolvers = ClassLinearSolvers()
@@ -38,6 +40,7 @@ module ModLinearSolverLibrary
             ! -----------------------------------------------------------------------------------
 			type(ClassPardisoSolver), pointer :: ParSol => null()
 			type(ClassLinearSolverLU), pointer :: LUSol => null()
+            type(ClassKrylovSolver), pointer :: GMRESSol => null()
 
             select case (SolverID)
                 case (LinearSolvers%LU)
@@ -46,6 +49,9 @@ module ModLinearSolverLibrary
                 case (LinearSolvers%Pardiso)
                     allocate(ParSol)
                     Solver => ParSol
+                case (LinearSolvers%GMRES)
+                    allocate(GMRESSol)
+                    Solver => GMRESSol
                 case default
                     call Error("AllocateNewLinearSolver :: Linear Solver not identified")
             end select
@@ -74,6 +80,8 @@ module ModLinearSolverLibrary
                 solverID = LinearSolvers%Pardiso
             elseif (comp%CompareStrings(solver,"LU")) then
                 solverID = LinearSolvers%LU
+            elseif (comp%CompareStrings(solver,"GMRES")) then
+                solverID = LinearSolvers%GMRES
             else
                 call Error("Error: Linear Solver not identified: "//trim(solver))
             endif

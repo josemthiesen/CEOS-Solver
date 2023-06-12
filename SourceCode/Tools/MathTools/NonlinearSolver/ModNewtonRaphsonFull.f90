@@ -63,7 +63,6 @@ module ModNewtonRaphsonFull
 
             use ModGlobalSparseMatrix
             use ModMathRoutines            
-            use ModGMRES
             
             class(ClassNewtonRaphsonFull)               :: this
             class(ClassNonLinearSystemOfEquations)      :: SOE

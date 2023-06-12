@@ -190,8 +190,8 @@ module ModGlobalFEMBiphasic
             ! ASSEMBLING THE INTERNAL FORCE
             !************************************************************************************
             Fint = 0.0d0
-            !$OMP PARALLEL DEFAULT(PRIVATE) FIRSTPRIVATE(Status) SHARED(AnalysisSettings, ElementList, Fint, P, VS)
-            !$OMP DO
+            !!$OMP PARALLEL DEFAULT(PRIVATE) FIRSTPRIVATE(Status) SHARED(AnalysisSettings, ElementList, Fint, P, VS)
+            !!$OMP DO
             do e = 1, size(ElementList)
                 call ConvertElementToElementBiphasic(ElementList(e)%el,  ElBiphasic) ! Aponta o objeto ElBiphasic para o ElementList(e)%El mas com o type correto ClassElementBiphasic
                 call ElBiphasic%GetElementNumberDOF_fluid(AnalysisSettings, nDOFel_fluid)
@@ -213,12 +213,12 @@ module ModGlobalFEMBiphasic
                     stop "Error computing the element's Fluid Internal Force"
                 endif
 
-                !$OMP CRITICAL
+                !!$OMP CRITICAL
                 Fint(GM_fluid) = Fint(GM_fluid) + Fe
-                !$OMP END CRITICAL
+                !!$OMP END CRITICAL
             enddo
-            !$OMP END DO
-            !$OMP END PARALLEL ! RETOMAR PARALELISMO
+            !!$OMP END DO
+            !!$OMP END PARALLEL ! RETOMAR PARALELISMO
 
         end subroutine
         !------------------------------------------------------------------------------------

@@ -914,9 +914,11 @@ module ModReadInputFile
                         ! Reading the values of macroscopic pressure and macroscopic pressure gradient
                         call ReadMacroscopicPressureSecondGradientComponents(BCFluid%MacroscopicSecondGradPres, DataFile, TimeFileName, ListofValues)
                         ! Defining the nodal displacement constraint for each multiscale BC model.
+                        
                         ! Global nodes or only Boundary nodes
-                        call DefineNodalMultiscalePresBC(AnalysisSettings, BCFluid%TypeOfBCFluid, BCFluid%BoundaryNodesFluid, BCFluid%NodalMultiscalePresBC , &
-                                                         GlobalNodesList)
+                        
+                        !call DefineNodalMultiscalePresBC(AnalysisSettings, BCFluid%TypeOfBCFluid, BCFluid%BoundaryNodesFluid, BCFluid%NodalMultiscalePresBC , &
+                        !                                 GlobalNodesList)
                                       
                     class default
                         stop "Error: ReadMultiscaleMacroscopicPressureAndGradiente - Multiscale BC not implemented"
